@@ -52,7 +52,7 @@ VITE_TIL_API_URL=http://my-til-host:8080 npm run dev
 
 ## Running with Docker Compose (Mock Backends)
 
-The project includes mock backend services that return empty collections so the UI can render without real services running.
+The project includes mock backend services that return empty collections so the UI can render without real services running. Docker Compose mounts a dedicated nginx config (`nginx-docker-compose.conf`) that routes API requests to the mock service containers.
 
 ```bash
 # Build and start the dashboard with mock backends
