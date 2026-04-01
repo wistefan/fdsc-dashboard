@@ -1,5 +1,6 @@
 <template>
   <div>
+    <!-- Back button -->
     <v-btn
       variant="text"
       prepend-icon="mdi-arrow-left"
@@ -8,20 +9,229 @@
     >
       {{ t('common.back') }}
     </v-btn>
+
     <h1 class="text-h4 mb-4">
-      {{ t('common.details') }}
+      {{ t('til.detailTitle') }}
     </h1>
-    <v-card>
-      <v-card-text class="text-medium-emphasis">
-        {{ t('common.empty') }}
-      </v-card-text>
-    </v-card>
+
+    <!-- Loading state -->
+    <template v-if="store.detailLoading">
+      <v-skeleton-loader
+        type="card"
+        class="mb-4"
+      />
+      <v-skeleton-loader type="card" />
+    </template>
+
+    <!-- Error state -->
+    <v-alert
+      v-else-if="store.detailError"
+      type="error"
+      variant="tonal"
+      class="mb-4"
+    >
+      {{ store.detailError }}
+      <template #append>
+        <v-btn
+          variant="text"
+          size="small"
+          @click="store.fetchIssuerDetail(did)"
+        >
+          {{ t('common.refresh') }}
+        </v-btn>
+      </template>
+    </v-alert>
+
+    <!-- Detail content -->
+    <template v-else-if="store.selectedIssuer">
+      <!-- Issuer DID card -->
+      <v-card class="mb-4">
+        <v-card-title>
+          {{ t('til.did') }}
+        </v-card-title>
+        <v-card-text>
+          <code class="text-body-1">{{ store.selectedIssuer.did }}</code>
+        </v-card-text>
+      </v-card>
+
+      <!-- Credentials section -->
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          <v-icon start>
+            mdi-file-certificate
+          </v-icon>
+          {{ t('til.credentials') }}
+          <v-chip
+            class="ml-2"
+            size="small"
+            color="primary"
+            variant="tonal"
+          >
+            {{ credentialCount }}
+          </v-chip>
+        </v-card-title>
+
+        <v-card-text v-if="!hasCredentials">
+          <p class="text-medium-emphasis">
+            {{ t('til.noCredentials') }}
+          </p>
+        </v-card-text>
+
+        <v-expansion-panels
+          v-else
+          variant="accordion"
+          class="mx-4 mb-4"
+        >
+          <v-expansion-panel
+            v-for="(cred, index) in store.selectedIssuer.credentials"
+            :key="index"
+          >
+            <v-expansion-panel-title>
+              <v-icon
+                start
+                size="small"
+              >
+                mdi-key-variant
+              </v-icon>
+              <span class="font-weight-medium">
+                {{ cred.credentialsType || t('til.credentialType') + ' ' + (index + 1) }}
+              </span>
+              <v-spacer />
+              <v-chip
+                v-if="cred.validFor"
+                size="x-small"
+                variant="outlined"
+                class="mr-2"
+              >
+                {{ formatDateRange(cred.validFor) }}
+              </v-chip>
+            </v-expansion-panel-title>
+
+            <v-expansion-panel-text>
+              <!-- Credential type -->
+              <div class="mb-3">
+                <span class="text-subtitle-2 text-medium-emphasis">
+                  {{ t('til.credentialType') }}:
+                </span>
+                <span class="ml-2">{{ cred.credentialsType || '—' }}</span>
+              </div>
+
+              <!-- Validity period -->
+              <div
+                v-if="cred.validFor"
+                class="mb-3"
+              >
+                <span class="text-subtitle-2 text-medium-emphasis">
+                  {{ t('til.validFrom') }}:
+                </span>
+                <span class="ml-2">{{ cred.validFor.from || '—' }}</span>
+                <span class="mx-2">|</span>
+                <span class="text-subtitle-2 text-medium-emphasis">
+                  {{ t('til.validTo') }}:
+                </span>
+                <span class="ml-2">{{ cred.validFor.to || '—' }}</span>
+              </div>
+
+              <!-- Claims table -->
+              <div v-if="cred.claims && cred.claims.length > 0">
+                <span class="text-subtitle-2 text-medium-emphasis d-block mb-2">
+                  {{ t('til.claims') }}
+                </span>
+                <v-table density="compact">
+                  <thead>
+                    <tr>
+                      <th>{{ t('til.claimName') }}</th>
+                      <th>{{ t('til.claimPath') }}</th>
+                      <th>{{ t('til.allowedValues') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(claim, ci) in cred.claims"
+                      :key="ci"
+                    >
+                      <td>{{ claim.name || '—' }}</td>
+                      <td>
+                        <code>{{ claim.path || '—' }}</code>
+                      </td>
+                      <td>
+                        <template v-if="claim.allowedValues && claim.allowedValues.length > 0">
+                          <v-chip
+                            v-for="(val, vi) in claim.allowedValues"
+                            :key="vi"
+                            size="x-small"
+                            variant="tonal"
+                            class="ma-1"
+                          >
+                            {{ formatAllowedValue(val) }}
+                          </v-chip>
+                        </template>
+                        <span
+                          v-else
+                          class="text-medium-emphasis"
+                        >—</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </v-table>
+              </div>
+
+              <p
+                v-else
+                class="text-medium-emphasis text-body-2 mt-2"
+              >
+                {{ t('til.claims') }}: {{ t('common.empty') }}
+              </p>
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+        </v-expansion-panels>
+      </v-card>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
+import { onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useTilStore } from '@/stores/til'
+import type { TimeRange } from '@/api/generated/til'
 
-defineProps<{ did: string }>()
+const props = defineProps<{ did: string }>()
 const { t } = useI18n()
+const store = useTilStore()
+
+/** Number of credentials configured for the selected issuer. */
+const credentialCount = computed(() => store.selectedIssuer?.credentials?.length ?? 0)
+
+/** Whether the selected issuer has any credentials. */
+const hasCredentials = computed(() => credentialCount.value > 0)
+
+/**
+ * Format a time range as a human-readable string.
+ *
+ * @param range - The time range to format.
+ * @returns A formatted date range string.
+ */
+function formatDateRange(range: TimeRange): string {
+  const from = range.from ?? '…'
+  const to = range.to ?? '…'
+  return `${from} → ${to}`
+}
+
+/**
+ * Format an allowed value for display. Objects are JSON-stringified,
+ * primitives are converted to strings.
+ *
+ * @param value - The allowed value to format.
+ * @returns A display string.
+ */
+function formatAllowedValue(value: Record<string, unknown>): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return JSON.stringify(value)
+}
+
+onMounted(() => {
+  store.fetchIssuerDetail(props.did)
+})
 </script>
