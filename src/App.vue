@@ -1,7 +1,10 @@
 <template>
   <v-app>
     <!-- App bar with title and theme toggle -->
-    <v-app-bar color="primary" density="default">
+    <v-app-bar
+      color="primary"
+      density="default"
+    >
       <v-app-bar-nav-icon @click="drawer = !drawer" />
       <v-app-bar-title>{{ t('app.title') }}</v-app-bar-title>
       <v-spacer />
@@ -10,13 +13,19 @@
         :aria-label="t('theme.toggle')"
         @click="toggleTheme"
       >
-        <v-icon>{{ isDark() ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
+        <v-icon>{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
       </v-btn>
     </v-app-bar>
 
     <!-- Navigation drawer / sidebar -->
-    <v-navigation-drawer v-model="drawer" app>
-      <v-list nav density="compact">
+    <v-navigation-drawer
+      v-model="drawer"
+      app
+    >
+      <v-list
+        nav
+        density="compact"
+      >
         <v-list-item
           prepend-icon="mdi-home"
           :title="t('nav.home')"
@@ -54,14 +63,17 @@
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTheme } from '@/composables/useTheme'
+import { useLocale } from '@/composables/useLocale'
 
 const { t } = useI18n()
 const { isDark, toggleTheme, initTheme } = useTheme()
+const { initLocale } = useLocale()
 
 /** Controls the visibility of the navigation drawer. */
 const drawer = ref(true)
 
 onMounted(() => {
   initTheme()
+  initLocale()
 })
 </script>
