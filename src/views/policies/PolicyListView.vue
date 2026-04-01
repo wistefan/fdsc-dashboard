@@ -1,6 +1,8 @@
 <template>
   <div>
-    <h1 class="text-h4 mb-4">{{ t('nav.policies') }}</h1>
+    <h1 class="text-h4 mb-4">
+      {{ t('nav.policies') }}
+    </h1>
     <v-card>
       <v-card-text class="text-medium-emphasis">
         {{ t('common.empty') }}
