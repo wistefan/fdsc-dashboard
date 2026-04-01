@@ -1,0 +1,32 @@
+{
+  "id": "packet-delivery-service",
+  "defaultOidcScope": "default",
+  "oidcScopes": {
+    "default": {
+      "credentials": [
+        {
+          "type": "VerifiableCredential",
+          "trustedIssuersLists": [
+            "http://til:8080"
+          ]
+        }
+      ]
+    },
+    "delivery": {
+      "credentials": [
+        {
+          "type": "PacketDeliveryCredential",
+          "trustedIssuersLists": [
+            "http://til:8080"
+          ],
+          "trustedParticipantsLists": [
+            {
+              "url": "http://tir:8080",
+              "type": "ebsi"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

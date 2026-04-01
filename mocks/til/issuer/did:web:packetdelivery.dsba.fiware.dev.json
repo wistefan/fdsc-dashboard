@@ -1,0 +1,26 @@
+{
+  "did": "did:web:packetdelivery.dsba.fiware.dev",
+  "credentials": [
+    {
+      "credentialsType": "PacketDeliveryCredential",
+      "validFor": {
+        "from": "2024-03-15T00:00:00Z",
+        "to": "2026-03-15T00:00:00Z"
+      },
+      "claims": [
+        {
+          "name": "deliveryType",
+          "allowedValues": [
+            { "names": ["standard", "express", "overnight"] }
+          ]
+        },
+        {
+          "name": "maxWeight",
+          "allowedValues": [
+            { "max": 50, "unit": "kg" }
+          ]
+        }
+      ]
+    }
+  ]
+}

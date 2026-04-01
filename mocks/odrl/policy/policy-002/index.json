@@ -1,0 +1,6 @@
+{
+  "id": "policy-002",
+  "odrl:uid": "urn:uuid:a3b1c2d4-e5f6-7890-abcd-ef1234567890",
+  "odrl": "{\"@context\":\"http://www.w3.org/ns/odrl.jsonld\",\"@type\":\"Set\",\"uid\":\"urn:uuid:a3b1c2d4-e5f6-7890-abcd-ef1234567890\",\"permission\":[{\"target\":\"urn:asset:pet-records\",\"action\":\"read\",\"constraint\":[{\"leftOperand\":\"role\",\"operator\":\"isAnyOf\",\"rightOperand\":[\"PET_OWNER\",\"VET_PROFESSIONAL\"]}]}]}",
+  "rego": "package policy.policy_002\n\ndefault allow = false\n\nallow {\n  input.role == \"PET_OWNER\"\n}\n\nallow {\n  input.role == \"VET_PROFESSIONAL\"\n}"
+}

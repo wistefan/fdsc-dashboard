@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "id": "policy-001",
+    "odrl:uid": "urn:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+    "odrl": "{\"@context\":\"http://www.w3.org/ns/odrl.jsonld\",\"@type\":\"Set\",\"uid\":\"urn:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6\",\"permission\":[{\"target\":\"urn:asset:delivery-standard\",\"action\":\"use\",\"constraint\":[{\"leftOperand\":\"role\",\"operator\":\"eq\",\"rightOperand\":\"GOLD_CUSTOMER\"}]}]}",
+    "rego": "package policy.policy_001\n\ndefault allow = false\n\nallow {\n  input.role == \"GOLD_CUSTOMER\"\n}"
+  },
+  {
+    "id": "policy-002",
+    "odrl:uid": "urn:uuid:a3b1c2d4-e5f6-7890-abcd-ef1234567890",
+    "odrl": "{\"@context\":\"http://www.w3.org/ns/odrl.jsonld\",\"@type\":\"Set\",\"uid\":\"urn:uuid:a3b1c2d4-e5f6-7890-abcd-ef1234567890\",\"permission\":[{\"target\":\"urn:asset:pet-records\",\"action\":\"read\",\"constraint\":[{\"leftOperand\":\"role\",\"operator\":\"isAnyOf\",\"rightOperand\":[\"PET_OWNER\",\"VET_PROFESSIONAL\"]}]}]}",
+    "rego": "package policy.policy_002\n\ndefault allow = false\n\nallow {\n  input.role == \"PET_OWNER\"\n}\n\nallow {\n  input.role == \"VET_PROFESSIONAL\"\n}"
+  },
+  {
+    "id": "policy-003",
+    "odrl:uid": "urn:uuid:b7c8d9e0-f1a2-3456-bcde-f67890123456",
+    "odrl": "{\"@context\":\"http://www.w3.org/ns/odrl.jsonld\",\"@type\":\"Offer\",\"uid\":\"urn:uuid:b7c8d9e0-f1a2-3456-bcde-f67890123456\",\"permission\":[{\"target\":\"urn:asset:delivery-express\",\"action\":\"use\",\"constraint\":[{\"leftOperand\":\"role\",\"operator\":\"eq\",\"rightOperand\":\"STANDARD_CUSTOMER\"},{\"leftOperand\":\"dateTime\",\"operator\":\"lt\",\"rightOperand\":\"2025-12-31T23:59:59Z\"}]}]}",
+    "rego": "package policy.policy_003\n\ndefault allow = false\n\nallow {\n  input.role == \"STANDARD_CUSTOMER\"\n  time.now_ns() < time.parse_rfc3339_ns(\"2025-12-31T23:59:59Z\")\n}"
+  }
+]

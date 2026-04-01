@@ -1,5 +1,5 @@
 {
-  "did": "did:web:marketplace.dsba.fiware.dev",
+  "did": "did:web:happypets.dsba.fiware.dev",
   "credentials": [
     {
       "credentialsType": "VerifiableCredential",
@@ -11,28 +11,28 @@
         {
           "name": "roles",
           "allowedValues": [
-            { "names": ["GOLD_CUSTOMER", "STANDARD_CUSTOMER"] }
+            { "names": ["PET_OWNER", "VET_PROFESSIONAL"] }
           ]
         }
       ]
     },
     {
-      "credentialsType": "CustomerCredential",
+      "credentialsType": "PetOwnerCredential",
       "validFor": {
-        "from": "2024-06-01T00:00:00Z",
-        "to": "2025-06-01T00:00:00Z"
+        "from": "2024-04-01T00:00:00Z",
+        "to": "2025-04-01T00:00:00Z"
       },
       "claims": [
         {
-          "name": "email",
+          "name": "petType",
           "allowedValues": [
-            { "pattern": "*@marketplace.dsba.fiware.dev" }
+            { "names": ["dog", "cat", "bird", "reptile"] }
           ]
         },
         {
-          "name": "level",
+          "name": "registrationNumber",
           "allowedValues": [
-            { "names": ["gold", "silver", "bronze"] }
+            { "pattern": "HP-[0-9]{6}" }
           ]
         }
       ]

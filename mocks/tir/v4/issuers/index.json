@@ -1,7 +1,23 @@
 {
   "self": "/v4/issuers/",
-  "items": [],
-  "total": 0,
+  "items": [
+    {
+      "did": "did:web:marketplace.dsba.fiware.dev",
+      "href": "/v4/issuers/did:web:marketplace.dsba.fiware.dev"
+    },
+    {
+      "did": "did:web:packetdelivery.dsba.fiware.dev",
+      "href": "/v4/issuers/did:web:packetdelivery.dsba.fiware.dev"
+    },
+    {
+      "did": "did:web:happypets.dsba.fiware.dev",
+      "href": "/v4/issuers/did:web:happypets.dsba.fiware.dev"
+    }
+  ],
+  "total": 3,
   "pageSize": 10,
-  "links": {}
+  "links": {
+    "first": "/v4/issuers/?pageSize=10",
+    "last": "/v4/issuers/?pageSize=10"
+  }
 }

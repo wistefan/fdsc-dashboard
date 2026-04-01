@@ -1,0 +1,27 @@
+{
+  "id": "happy-pets-service",
+  "defaultOidcScope": "default",
+  "oidcScopes": {
+    "default": {
+      "credentials": [
+        {
+          "type": "VerifiableCredential",
+          "trustedIssuersLists": [
+            "http://til:8080"
+          ]
+        }
+      ]
+    },
+    "petcare": {
+      "credentials": [
+        {
+          "type": "PetOwnerCredential",
+          "trustedIssuersLists": [
+            "http://til:8080"
+          ]
+        }
+      ],
+      "flatClaims": true
+    }
+  }
+}

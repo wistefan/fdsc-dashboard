@@ -1,0 +1,6 @@
+{
+  "id": "policy-003",
+  "odrl:uid": "urn:uuid:b7c8d9e0-f1a2-3456-bcde-f67890123456",
+  "odrl": "{\"@context\":\"http://www.w3.org/ns/odrl.jsonld\",\"@type\":\"Offer\",\"uid\":\"urn:uuid:b7c8d9e0-f1a2-3456-bcde-f67890123456\",\"permission\":[{\"target\":\"urn:asset:delivery-express\",\"action\":\"use\",\"constraint\":[{\"leftOperand\":\"role\",\"operator\":\"eq\",\"rightOperand\":\"STANDARD_CUSTOMER\"},{\"leftOperand\":\"dateTime\",\"operator\":\"lt\",\"rightOperand\":\"2025-12-31T23:59:59Z\"}]}]}",
+  "rego": "package policy.policy_003\n\ndefault allow = false\n\nallow {\n  input.role == \"STANDARD_CUSTOMER\"\n  time.now_ns() < time.parse_rfc3339_ns(\"2025-12-31T23:59:59Z\")\n}"
+}
