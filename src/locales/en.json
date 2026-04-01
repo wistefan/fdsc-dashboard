@@ -1,0 +1,39 @@
+{
+  "app": {
+    "title": "FDSC Dashboard"
+  },
+  "nav": {
+    "home": "Home",
+    "til": "Trusted Issuers",
+    "ccs": "Credentials Config",
+    "policies": "Policies"
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "An error occurred",
+    "empty": "No data available",
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "search": "Search",
+    "actions": "Actions",
+    "back": "Back",
+    "refresh": "Refresh",
+    "id": "ID",
+    "type": "Type",
+    "status": "Status",
+    "details": "Details"
+  },
+  "home": {
+    "title": "Dashboard",
+    "subtitle": "Manage your Data Space Connector resources"
+  },
+  "theme": {
+    "toggle": "Toggle theme",
+    "light": "Light",
+    "dark": "Dark"
+  }
+}
