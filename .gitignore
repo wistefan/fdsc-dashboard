@@ -19,6 +19,9 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Downloaded OpenAPI specs (fetched at build time via scripts/download-specs.sh)
+specs/
+
 # Logs
 *.log
 npm-debug.log*

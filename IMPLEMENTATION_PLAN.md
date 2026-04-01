@@ -48,13 +48,11 @@ Configure Vuetify's theming system for full customizability and set up Vue I18n 
 
 ### Step 3: API client generation and configuration
 
-Generate TypeScript API clients from the upstream OpenAPI specifications for TIL, CCS, and ODRL-PAP. Use `openapi-typescript-codegen` or `openapi-generator-cli` to produce typed clients. Store the OpenAPI specs in the repo so clients can be regenerated when upstream specs change.
+Generate TypeScript API clients from the upstream OpenAPI specifications for TIL, CCS, and ODRL-PAP. Use `openapi-typescript-codegen` or `openapi-generator-cli` to produce typed clients. Specs are downloaded at build time from their upstream repositories using pinned versions defined in `spec-versions.env`.
 
 **Files created:**
-- `specs/trusted-issuers-list.yaml` — copy of TIL management API spec (from `FIWARE/trusted-issuers-list/api/trusted-issuers-list.yaml`)
-- `specs/trusted-issuers-registry.yaml` — copy of TIR read-only API spec (from `FIWARE/trusted-issuers-list/api/trusted-issuers-registry.yaml`)
-- `specs/credentials-config-service.yaml` — copy of CCS API spec (from `FIWARE/credentials-config-service/api/credentials-config-service.yaml`)
-- `specs/odrl-pap.yaml` — copy of ODRL-PAP policy API spec (from `SEAMWARE/odrl-pap/api/odrl.yaml`)
+- `spec-versions.env` — pinned git refs (tags/branches) for each upstream OpenAPI spec
+- `scripts/download-specs.sh` — downloads versioned specs from upstream GitHub repos into `specs/`
 - `src/api/generated/til/` — generated TIL client (services, models, types)
 - `src/api/generated/tir/` — generated TIR client
 - `src/api/generated/ccs/` — generated CCS client

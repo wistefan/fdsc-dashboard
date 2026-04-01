@@ -1,13 +1,15 @@
 # Stage 1: Build the Vue application
 FROM node:20-alpine AS build
 
+RUN apk add --no-cache curl bash
+
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN npm run generate:api && npm run build
 
 # Stage 2: Serve with nginx
 FROM nginx:alpine AS production
