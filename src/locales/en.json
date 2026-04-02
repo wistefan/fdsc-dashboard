@@ -113,7 +113,16 @@
     "removeScope": "Remove Scope",
     "noServices": "No services found",
     "noScopes": "No OIDC scopes configured",
-    "confirmDeleteService": "Are you sure you want to delete this service?"
+    "confirmDeleteService": "Are you sure you want to delete this service?",
+    "addCredential": "Add Credential",
+    "removeCredential": "Remove Credential",
+    "trustedIssuersLists": "Trusted Issuers Lists",
+    "trustedParticipantsLists": "Trusted Participants Lists",
+    "commaSeparatedHint": "Comma-separated URLs",
+    "createSuccess": "Service created successfully",
+    "updateSuccess": "Service updated successfully",
+    "deleteSuccess": "Service deleted successfully",
+    "deleteError": "Failed to delete service"
   },
   "policies": {
     "title": "ODRL Policies",
