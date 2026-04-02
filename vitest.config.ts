@@ -12,7 +12,13 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: [],
+    setupFiles: ['./src/test-setup.ts'],
     include: ['src/**/*.spec.ts'],
+    css: true,
+    server: {
+      deps: {
+        inline: ['vuetify'],
+      },
+    },
   },
 })
