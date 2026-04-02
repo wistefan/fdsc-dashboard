@@ -36,45 +36,46 @@
         :page="store.currentPage + 1"
         item-value="id"
         hover
+        class="cursor-pointer"
         @update:page="onPageChange"
         @update:items-per-page="onPageSizeChange"
         @click:row="onRowClick"
       >
-        <!-- Custom row rendering -->
-        <template #item="{ item }">
-          <tr
-            class="cursor-pointer"
-            @click="navigateToDetail(item.id ?? '')"
+        <!-- ID column -->
+        <template #item.id="{ item }">
+          <span class="text-body-2 font-weight-medium">
+            {{ item.id }}
+          </span>
+        </template>
+
+        <!-- ODRL UID column (dynamic slot name because key contains a colon) -->
+        <template #[odrlUidSlot]="{ item }">
+          <span class="text-body-2">
+            {{ item['odrl:uid'] ?? '' }}
+          </span>
+        </template>
+
+        <!-- Policy type column -->
+        <template #item.policyType="{ item }">
+          <v-chip
+            size="small"
+            variant="tonal"
+            color="primary"
           >
-            <td>
-              <span class="text-body-2 font-weight-medium">
-                {{ item.id }}
-              </span>
-            </td>
-            <td>
-              <span class="text-body-2">
-                {{ item['odrl:uid'] ?? '' }}
-              </span>
-            </td>
-            <td>
-              <v-chip
-                size="small"
-                variant="tonal"
-                color="primary"
-              >
-                {{ extractPolicyType(item) }}
-              </v-chip>
-            </td>
-            <td class="text-end">
-              <v-chip
-                size="small"
-                variant="outlined"
-                color="primary"
-              >
-                {{ t('common.details') }}
-              </v-chip>
-            </td>
-          </tr>
+            {{ extractPolicyType(item) }}
+          </v-chip>
+        </template>
+
+        <!-- Actions column -->
+        <template #item.href="{ item }">
+          <v-chip
+            size="small"
+            variant="outlined"
+            color="primary"
+            @click.stop="navigateToDetail(item.id ?? '')"
+          >
+            {{ t('common.details') }}
+          </v-chip>
         </template>
 
         <!-- Empty state -->
@@ -111,6 +112,9 @@ import type { Policy } from '@/api/generated/odrl'
 
 /** Fallback value when the ODRL type cannot be determined. */
 const UNKNOWN_TYPE = 'Unknown'
+
+/** Dynamic slot name for the ODRL UID column (key contains a colon). */
+const odrlUidSlot = 'item.odrl:uid'
 
 const { t } = useI18n()
 const router = useRouter()

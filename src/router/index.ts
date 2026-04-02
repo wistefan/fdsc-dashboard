@@ -15,6 +15,17 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/til/TilListView.vue'),
   },
   {
+    path: '/til/new',
+    name: 'til-create',
+    component: () => import('@/views/til/TilFormView.vue'),
+  },
+  {
+    path: '/til/:did/edit',
+    name: 'til-edit',
+    component: () => import('@/views/til/TilFormView.vue'),
+    props: true,
+  },
+  {
     path: '/til/:did',
     name: 'til-detail',
     component: () => import('@/views/til/TilDetailView.vue'),
