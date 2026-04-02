@@ -36,31 +36,28 @@
         :page="store.currentPage + 1"
         item-value="did"
         hover
+        class="cursor-pointer"
         @update:page="onPageChange"
         @update:items-per-page="onPageSizeChange"
         @click:row="onRowClick"
       >
-        <!-- Custom row rendering -->
-        <template #item="{ item }">
-          <tr
-            class="cursor-pointer"
-            @click="navigateToDetail(item.did)"
+        <!-- DID column -->
+        <template #item.did="{ item }">
+          <span class="text-body-2 font-weight-medium">
+            {{ item.did }}
+          </span>
+        </template>
+
+        <!-- Actions column -->
+        <template #item.href="{ item }">
+          <v-chip
+            size="small"
+            variant="outlined"
+            color="primary"
+            @click.stop="navigateToDetail(item.did)"
           >
-            <td>
-              <span class="text-body-2 font-weight-medium">
-                {{ item.did }}
-              </span>
-            </td>
-            <td class="text-end">
-              <v-chip
-                size="small"
-                variant="outlined"
-                color="primary"
-              >
-                {{ t('common.details') }}
-              </v-chip>
-            </td>
-          </tr>
+            {{ t('common.details') }}
+          </v-chip>
         </template>
 
         <!-- Empty state -->

@@ -36,45 +36,39 @@
         :page="store.currentPage + 1"
         item-value="id"
         hover
+        class="cursor-pointer"
         @update:page="onPageChange"
         @update:items-per-page="onPageSizeChange"
         @click:row="onRowClick"
       >
-        <!-- Custom row rendering -->
-        <template #item="{ item }">
-          <tr
-            class="cursor-pointer"
-            @click="navigateToDetail(item.id ?? '')"
+        <!-- ID column -->
+        <template #item.id="{ item }">
+          <span class="text-body-2 font-weight-medium">
+            {{ item.id }}
+          </span>
+        </template>
+
+        <!-- Scope count column -->
+        <template #item.oidcScopes="{ item }">
+          <v-chip
+            size="small"
+            variant="tonal"
+            color="primary"
           >
-            <td>
-              <span class="text-body-2 font-weight-medium">
-                {{ item.id }}
-              </span>
-            </td>
-            <td>
-              <span class="text-body-2">
-                {{ item.defaultOidcScope }}
-              </span>
-            </td>
-            <td>
-              <v-chip
-                size="small"
-                variant="tonal"
-                color="primary"
-              >
-                {{ scopeCount(item) }}
-              </v-chip>
-            </td>
-            <td class="text-end">
-              <v-chip
-                size="small"
-                variant="outlined"
-                color="primary"
-              >
-                {{ t('common.details') }}
-              </v-chip>
-            </td>
-          </tr>
+            {{ scopeCount(item) }}
+          </v-chip>
+        </template>
+
+        <!-- Actions column -->
+        <template #item.href="{ item }">
+          <v-chip
+            size="small"
+            variant="outlined"
+            color="primary"
+            @click.stop="navigateToDetail(item.id ?? '')"
+          >
+            {{ t('common.details') }}
+          </v-chip>
         </template>
 
         <!-- Empty state -->
