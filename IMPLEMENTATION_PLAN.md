@@ -22,7 +22,7 @@ Import types from `@/api/generated/ccs` (`Service`, `Services`, `ServiceService`
 - `DEFAULT_PAGE_SIZE` extracted as a named constant.
 - Error handling distinguishes `ApiError` from generic errors.
 
-### Step 2: Implement CCS list view
+### Step 2: Implement CCS list view *(completed as part of Step 8)*
 Replace the stub in `src/views/ccs/CcsListView.vue` with a fully functional paginated list view following `src/views/til/TilListView.vue` as the reference pattern.
 
 **Requirements:**
@@ -42,7 +42,7 @@ Replace the stub in `src/views/ccs/CcsListView.vue` with a fully functional pagi
 - Row click navigates to detail view.
 - All strings use i18n keys from `en.json`.
 
-### Step 3: Implement CCS detail view
+### Step 3: Implement CCS detail view *(completed as part of Step 8)*
 Replace the stub in `src/views/ccs/CcsDetailView.vue` with a full detail view following `src/views/til/TilDetailView.vue`.
 
 **Requirements:**
@@ -100,7 +100,7 @@ Replace the stub in `src/views/policies/PolicyListView.vue` with a paginated lis
 - Row click navigates to detail.
 - ODRL UID and type are correctly extracted and displayed.
 
-### Step 6: Implement Policies detail view
+### Step 6: Implement Policies detail view *(completed as part of Step 9)*
 Replace the stub in `src/views/policies/PolicyDetailView.vue`.
 
 **Requirements:**

@@ -53,7 +53,12 @@
   },
   "home": {
     "title": "Dashboard",
-    "subtitle": "Manage your Data Space Connector resources"
+    "subtitle": "Manage your Data Space Connector resources",
+    "viewAll": "View All",
+    "resourceCount": "resources",
+    "tilDescription": "Manage trusted issuer entries",
+    "ccsDescription": "Configure credential services",
+    "policiesDescription": "Define ODRL access policies"
   },
   "theme": {
     "toggle": "Toggle theme",
