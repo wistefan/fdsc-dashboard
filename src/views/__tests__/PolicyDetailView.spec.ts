@@ -36,9 +36,6 @@ const mockUsePoliciesStore = vi.mocked(usePoliciesStore)
 
 /* ── Test data ───────────────────────────────────────────────────── */
 
-/** Number of spaces for JSON indentation, matches the component constant. */
-const JSON_INDENT = 2
-
 /** A mock ODRL policy JSON string with permissions and constraints. */
 const MOCK_ODRL_JSON = JSON.stringify({
   '@context': 'http://www.w3.org/ns/odrl.jsonld',
@@ -217,7 +214,6 @@ describe('PolicyDetailView', () => {
 
     it('should display formatted ODRL JSON', () => {
       const wrapper = mountComponent({ selectedPolicy: MOCK_POLICY })
-      const formatted = JSON.stringify(JSON.parse(MOCK_ODRL_JSON), null, JSON_INDENT)
       expect(wrapper.text()).toContain('"@type"')
     })
 

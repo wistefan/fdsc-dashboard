@@ -5,16 +5,11 @@
  * by Vuetify components (e.g. ResizeObserver, IntersectionObserver).
  */
 
-import { vi } from 'vitest'
-
 /* ── ResizeObserver polyfill ─────────────────────────────────────── */
 
 class ResizeObserverStub {
-  /** Callback provided to the observer (unused in stub). */
-  private readonly callback: ResizeObserverCallback
-
-  constructor(callback: ResizeObserverCallback) {
-    this.callback = callback
+  constructor(_callback: ResizeObserverCallback) {
+    /* no-op */
   }
 
   observe(): void {
@@ -30,7 +25,7 @@ class ResizeObserverStub {
   }
 }
 
-global.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
+globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
 
 /* ── IntersectionObserver polyfill ───────────────────────────────── */
 
@@ -60,7 +55,7 @@ class IntersectionObserverStub {
   }
 }
 
-global.IntersectionObserver = IntersectionObserverStub as unknown as typeof IntersectionObserver
+globalThis.IntersectionObserver = IntersectionObserverStub as unknown as typeof IntersectionObserver
 
 /* ── Suppress Vue warnings in tests ─────────────────────────────── */
 

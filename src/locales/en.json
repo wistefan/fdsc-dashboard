@@ -164,7 +164,12 @@
     "authorityValues": "Values (comma-separated)",
     "noDcqlConfigured": "No DCQL configured",
     "noCredentialQueries": "No credential queries configured",
-    "noCredentialSetQueries": "No credential set queries configured"
+    "noCredentialSetQueries": "No credential set queries configured",
+    "flatClaims": "Flat Claims",
+    "claimPathHint": "e.g. [\"address\", \"street\"]",
+    "claimValuesHint": "e.g. [\"value1\", \"value2\"]",
+    "credentialSetOptionsHint": "e.g. id1,id2;id3,id4",
+    "credentialSetPurposeHint": "JSON object"
   },
   "policies": {
     "title": "ODRL Policies",
