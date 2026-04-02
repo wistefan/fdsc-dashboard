@@ -180,7 +180,7 @@
               <!-- Flat claims toggle -->
               <v-switch
                 v-model="scope.flatClaims"
-                label="Flat Claims"
+                :label="t('ccs.flatClaims')"
                 color="primary"
                 density="comfortable"
                 class="mb-3"
@@ -373,7 +373,7 @@
                             <v-text-field
                               v-model="claim.pathRaw"
                               :label="t('ccs.claimPath')"
-                              hint="e.g. [&quot;address&quot;, &quot;street&quot;]"
+                              :hint="t('ccs.claimPathHint')"
                               variant="outlined"
                               density="compact"
                               persistent-hint
@@ -382,7 +382,7 @@
                             <v-text-field
                               v-model="claim.valuesRaw"
                               :label="t('ccs.claimValues')"
-                              hint="e.g. [&quot;value1&quot;, &quot;value2&quot;]"
+                              :hint="t('ccs.claimValuesHint')"
                               variant="outlined"
                               density="compact"
                               persistent-hint
@@ -526,7 +526,7 @@
                     <v-text-field
                       v-model="csq.optionsRaw"
                       :label="t('ccs.credentialSetOptions')"
-                      hint="e.g. id1,id2;id3,id4"
+                      :hint="t('ccs.credentialSetOptionsHint')"
                       variant="outlined"
                       density="compact"
                       persistent-hint
@@ -543,7 +543,7 @@
                     <v-text-field
                       v-model="csq.purposeRaw"
                       :label="t('ccs.credentialSetPurpose')"
-                      hint="JSON object"
+                      :hint="t('ccs.credentialSetPurposeHint')"
                       variant="outlined"
                       density="compact"
                       persistent-hint

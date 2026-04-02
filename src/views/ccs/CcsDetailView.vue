@@ -232,7 +232,7 @@
                 class="mb-3"
               >
                 <span class="text-subtitle-2 text-medium-emphasis">
-                  Flat Claims:
+                  {{ t('ccs.flatClaims') }}:
                 </span>
                 <v-chip
                   size="x-small"
