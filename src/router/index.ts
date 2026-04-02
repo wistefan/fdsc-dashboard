@@ -37,6 +37,17 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/ccs/CcsListView.vue'),
   },
   {
+    path: '/ccs/new',
+    name: 'ccs-create',
+    component: () => import('@/views/ccs/CcsFormView.vue'),
+  },
+  {
+    path: '/ccs/:id/edit',
+    name: 'ccs-edit',
+    component: () => import('@/views/ccs/CcsFormView.vue'),
+    props: true,
+  },
+  {
     path: '/ccs/:id',
     name: 'ccs-detail',
     component: () => import('@/views/ccs/CcsDetailView.vue'),

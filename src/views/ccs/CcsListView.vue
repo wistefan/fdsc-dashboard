@@ -1,8 +1,18 @@
 <template>
   <div>
-    <h1 class="text-h4 mb-4">
-      {{ t('ccs.listTitle') }}
-    </h1>
+    <div class="d-flex align-center mb-4">
+      <h1 class="text-h4">
+        {{ t('ccs.listTitle') }}
+      </h1>
+      <v-spacer />
+      <v-btn
+        color="primary"
+        prepend-icon="mdi-plus"
+        :to="{ name: 'ccs-create' }"
+      >
+        {{ t('ccs.createTitle') }}
+      </v-btn>
+    </div>
 
     <!-- Error alert -->
     <v-alert

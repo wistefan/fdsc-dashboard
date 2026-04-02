@@ -1,8 +1,8 @@
 /**
  * Pinia store for Credentials Config Service (CCS) state management.
  *
- * Uses the CCS API for listing services (paginated) and fetching
- * individual service details by ID.
+ * Uses the CCS API for listing services (paginated), fetching
+ * individual service details by ID, and performing CRUD operations.
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -34,6 +34,12 @@ export const useCcsStore = defineStore('ccs', () => {
   const detailLoading = ref(false)
   /** Error message from the last detail fetch, or null if successful. */
   const detailError = ref<string | null>(null)
+
+  // ── CRUD state ──────────────────────────────────────────────────────
+  /** Whether a create/update/delete operation is in progress. */
+  const saving = ref(false)
+  /** Error message from the last create/update/delete operation. */
+  const saveError = ref<string | null>(null)
 
   /** Whether the services list is empty (after a successful fetch). */
   const isEmpty = computed(() => !listLoading.value && services.value.length === 0)
@@ -92,6 +98,72 @@ export const useCcsStore = defineStore('ccs', () => {
     }
   }
 
+  /**
+   * Create a new service.
+   *
+   * @param service - The service payload to create.
+   * @returns `true` on success, `false` on error.
+   */
+  async function createService(service: Service): Promise<boolean> {
+    saving.value = true
+    saveError.value = null
+
+    try {
+      await ServiceService.createService({ requestBody: service })
+      return true
+    } catch (error) {
+      saveError.value = error instanceof ApiError ? error.message : String(error)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
+   * Update an existing service.
+   *
+   * @param id - The ID of the service to update.
+   * @param service - The updated service payload.
+   * @returns `true` on success, `false` on error.
+   */
+  async function updateService(id: string, service: Service): Promise<boolean> {
+    saving.value = true
+    saveError.value = null
+
+    try {
+      const updated = await ServiceService.updateService({ id, requestBody: service })
+      selectedService.value = updated
+      return true
+    } catch (error) {
+      saveError.value = error instanceof ApiError ? error.message : String(error)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
+   * Delete a service by ID.
+   *
+   * @param id - The ID of the service to delete.
+   * @returns `true` on success, `false` on error.
+   */
+  async function deleteService(id: string): Promise<boolean> {
+    saving.value = true
+    saveError.value = null
+
+    try {
+      await ServiceService.deleteServiceById({ id })
+      selectedService.value = null
+      return true
+    } catch (error) {
+      saveError.value = error instanceof ApiError ? error.message : String(error)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
   /** Reset the store to its initial state. */
   function $reset(): void {
     services.value = []
@@ -103,6 +175,8 @@ export const useCcsStore = defineStore('ccs', () => {
     selectedService.value = null
     detailLoading.value = false
     detailError.value = null
+    saving.value = false
+    saveError.value = null
   }
 
   return {
@@ -116,12 +190,17 @@ export const useCcsStore = defineStore('ccs', () => {
     selectedService,
     detailLoading,
     detailError,
+    saving,
+    saveError,
     // Computed
     isEmpty,
     totalPages,
     // Actions
     fetchServices,
     fetchServiceDetail,
+    createService,
+    updateService,
+    deleteService,
     $reset,
   }
 })
