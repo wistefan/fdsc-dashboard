@@ -10,6 +10,7 @@ A Vue 3 dashboard for managing FIWARE Data Space Connector (DSC) resources inclu
 - **Pinia** – state management
 - **Vue I18n** – internationalization (English by default)
 - **Vite** – build tooling and dev server
+- **Vitest** – unit testing framework
 
 ## Prerequisites
 
@@ -75,15 +76,63 @@ Stop the stack with:
 docker compose down
 ```
 
+## Running Tests
+
+The project uses [Vitest](https://vitest.dev/) as its test framework with `jsdom` for DOM emulation and `@vue/test-utils` for Vue component testing.
+
+### Run all tests once
+
+```bash
+npm run test
+```
+
+This executes all `*.spec.ts` files under `src/` in a single run and exits.
+
+### Run tests in watch mode
+
+```bash
+npm run test:watch
+```
+
+Vitest will re-run affected tests automatically whenever source or test files change. This is the recommended mode during development.
+
+### Run a specific test file
+
+```bash
+npx vitest run src/stores/__tests__/til.spec.ts
+```
+
+### Run tests matching a name pattern
+
+```bash
+npx vitest run -t "should fetch issuers"
+```
+
+### Test file locations
+
+Test files are co-located with the source code they cover:
+
+| Store   | Test File                                |
+|---------|------------------------------------------|
+| TIL     | `src/stores/__tests__/til.spec.ts`       |
+| CCS     | `src/stores/__tests__/ccs.spec.ts`       |
+| Policies| `src/stores/__tests__/policies.spec.ts`  |
+
+### Configuration
+
+The Vitest configuration is defined in `vitest.config.ts` at the project root. It uses the `jsdom` test environment, enables global test APIs (`describe`, `it`, `expect`), and resolves the `@/` path alias to `src/`.
+
 ## Available Scripts
 
-| Command           | Description                                   |
-|-------------------|-----------------------------------------------|
-| `npm run dev`     | Start the Vite dev server with HMR            |
-| `npm run build`   | Type-check and build for production           |
-| `npm run preview` | Preview the production build locally          |
-| `npm run lint`    | Lint source files with ESLint (auto-fix)      |
-| `npm run format`  | Format source files with Prettier             |
+| Command              | Description                                   |
+|----------------------|-----------------------------------------------|
+| `npm run dev`        | Start the Vite dev server with HMR            |
+| `npm run build`      | Type-check and build for production           |
+| `npm run preview`    | Preview the production build locally          |
+| `npm run test`       | Run all unit tests once                       |
+| `npm run test:watch` | Run unit tests in watch mode                  |
+| `npm run lint`       | Lint source files with ESLint (auto-fix)      |
+| `npm run format`     | Format source files with Prettier             |
 
 ## Building for Production
 
@@ -116,6 +165,7 @@ src/
   main.ts              # Application entry point
   router/index.ts      # Route definitions
   stores/index.ts      # Pinia store setup
+    __tests__/           # Unit tests for stores
   plugins/
     vuetify.ts         # Vuetify configuration and theming
     i18n.ts            # Vue I18n setup
