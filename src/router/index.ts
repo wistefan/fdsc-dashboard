@@ -75,6 +75,24 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/policies/PolicyDetailView.vue'),
     props: true,
   },
+  {
+    path: '/policies/service/:serviceId/new',
+    name: 'service-policy-create',
+    component: () => import('@/views/policies/PolicyFormView.vue'),
+    props: true,
+  },
+  {
+    path: '/policies/service/:serviceId/:id/edit',
+    name: 'service-policy-edit',
+    component: () => import('@/views/policies/PolicyFormView.vue'),
+    props: true,
+  },
+  {
+    path: '/policies/service/:serviceId/:id',
+    name: 'service-policy-detail',
+    component: () => import('@/views/policies/PolicyDetailView.vue'),
+    props: true,
+  },
 ]
 
 const router = createRouter({

@@ -203,6 +203,9 @@
     "createSuccess": "Policy created successfully",
     "updateSuccess": "Policy updated successfully",
     "deleteSuccess": "Policy deleted successfully",
-    "deleteError": "Failed to delete policy"
+    "deleteError": "Failed to delete policy",
+    "createServiceSuccess": "Service created successfully",
+    "deleteServiceSuccess": "Service deleted successfully",
+    "deleteServiceError": "Failed to delete service"
   }
 }

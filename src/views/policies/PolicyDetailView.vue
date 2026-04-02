@@ -10,6 +10,17 @@
       {{ t('common.back') }}
     </v-btn>
 
+    <!-- Service badge -->
+    <v-chip
+      v-if="serviceId"
+      class="mb-4 ml-2"
+      color="info"
+      variant="tonal"
+      prepend-icon="mdi-folder-outline"
+    >
+      {{ t('policies.service') }}: {{ serviceId }}
+    </v-chip>
+
     <div class="d-flex align-center mb-4">
       <h1 class="text-h4">
         {{ t('policies.detailTitle') }}
@@ -21,7 +32,7 @@
         variant="tonal"
         class="mr-2"
         prepend-icon="mdi-pencil"
-        :to="{ name: 'policy-edit', params: { id } }"
+        :to="editRoute"
       >
         {{ t('common.edit') }}
       </v-btn>
@@ -272,10 +283,21 @@ const SNACKBAR_TIMEOUT = 3000
 /** Number of spaces used for JSON indentation. */
 const JSON_INDENT = 2
 
-const props = defineProps<{ id: string }>()
+const props = defineProps<{ id: string; serviceId?: string }>()
 const { t } = useI18n()
 const router = useRouter()
 const store = usePoliciesStore()
+
+/** Whether this detail view is for a service-scoped policy. */
+const isServicePolicy = computed(() => !!props.serviceId)
+
+/** Route object for the edit button, accounting for service scope. */
+const editRoute = computed(() => {
+  if (isServicePolicy.value) {
+    return { name: 'service-policy-edit', params: { serviceId: props.serviceId, id: props.id } }
+  }
+  return { name: 'policy-edit', params: { id: props.id } }
+})
 
 /** Whether the delete confirmation dialog is visible. */
 const showDeleteDialog = ref(false)
@@ -292,8 +314,14 @@ const errorMessage = ref('')
  * Handle policy deletion after confirmation.
  * Calls the store delete action and navigates back on success.
  */
+/**
+ * Handle policy deletion after confirmation.
+ * Uses service-scoped or global delete based on whether serviceId is set.
+ */
 async function handleDelete(): Promise<void> {
-  const success = await store.deletePolicy(props.id)
+  const success = isServicePolicy.value
+    ? await store.deleteServicePolicy(props.serviceId!, props.id)
+    : await store.deletePolicy(props.id)
   showDeleteDialog.value = false
   if (success) {
     successMessage.value = t('policies.deleteSuccess')
@@ -339,6 +367,10 @@ const formattedOdrl = computed(() => {
 })
 
 onMounted(() => {
-  store.fetchPolicyDetail(props.id)
+  if (isServicePolicy.value) {
+    store.fetchServicePolicyDetail(props.serviceId!, props.id)
+  } else {
+    store.fetchPolicyDetail(props.id)
+  }
 })
 </script>

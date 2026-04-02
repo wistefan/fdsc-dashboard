@@ -14,6 +14,17 @@
       {{ isEditMode ? t('policies.editTitle') : t('policies.createTitle') }}
     </h1>
 
+    <!-- Service badge -->
+    <v-chip
+      v-if="serviceId"
+      class="mb-4"
+      color="info"
+      variant="tonal"
+      prepend-icon="mdi-folder-outline"
+    >
+      {{ t('policies.service') }}: {{ serviceId }}
+    </v-chip>
+
     <!-- Error alert -->
     <v-alert
       v-if="store.saveError"
@@ -326,7 +337,7 @@ const DEFAULT_ODRL_CONTEXT = 'http://www.w3.org/ns/odrl.jsonld'
 /** Number of spaces used for JSON indentation in the preview. */
 const JSON_INDENT = 2
 
-const props = defineProps<{ id?: string }>()
+const props = defineProps<{ id?: string; serviceId?: string }>()
 const { t } = useI18n()
 const router = useRouter()
 const store = usePoliciesStore()
@@ -334,6 +345,9 @@ const formRef = ref<{ validate: () => Promise<{ valid: boolean }> } | null>(null
 
 /** Whether the form is in edit mode (has an id prop). */
 const isEditMode = computed(() => !!props.id)
+
+/** Whether this form is for a service-scoped policy. */
+const isServicePolicy = computed(() => !!props.serviceId)
 
 /** Success message for the snackbar. */
 const successMessage = ref('')
@@ -561,7 +575,7 @@ function populateForm(policy: { odrl?: string; 'odrl:uid'?: string }): void {
   }
 }
 
-/** Handle form submission for create or update. */
+/** Handle form submission for create or update, supporting service-scoped policies. */
 async function handleSubmit(): Promise<void> {
   const validation = await formRef.value?.validate()
   if (!validation?.valid) return
@@ -569,14 +583,22 @@ async function handleSubmit(): Promise<void> {
   const payload = buildPayload()
 
   if (isEditMode.value && props.id) {
-    const success = await store.updatePolicy(props.id, payload)
+    const success = isServicePolicy.value
+      ? await store.updateServicePolicy(props.serviceId!, props.id, payload)
+      : await store.updatePolicy(props.id, payload)
     if (success) {
       successMessage.value = t('policies.updateSuccess')
       showSuccess.value = true
-      router.push({ name: 'policy-detail', params: { id: props.id } })
+      if (isServicePolicy.value) {
+        router.push({ name: 'service-policy-detail', params: { serviceId: props.serviceId, id: props.id } })
+      } else {
+        router.push({ name: 'policy-detail', params: { id: props.id } })
+      }
     }
   } else {
-    const success = await store.createPolicy(payload)
+    const success = isServicePolicy.value
+      ? await store.createServicePolicy(props.serviceId!, payload)
+      : await store.createPolicy(payload)
     if (success) {
       successMessage.value = t('policies.createSuccess')
       showSuccess.value = true
@@ -587,7 +609,11 @@ async function handleSubmit(): Promise<void> {
 
 onMounted(async () => {
   if (isEditMode.value && props.id) {
-    await store.fetchPolicyDetail(props.id)
+    if (isServicePolicy.value) {
+      await store.fetchServicePolicyDetail(props.serviceId!, props.id)
+    } else {
+      await store.fetchPolicyDetail(props.id)
+    }
     if (store.selectedPolicy) {
       populateForm(store.selectedPolicy)
     }
