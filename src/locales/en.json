@@ -127,6 +127,7 @@
     "validate": "Validate",
     "validationResult": "Validation Result",
     "mappings": "Mappings",
+    "policyType": "Policy Type",
     "noPolicies": "No policies found",
     "noServices": "No services found",
     "confirmDeletePolicy": "Are you sure you want to delete this policy?",
