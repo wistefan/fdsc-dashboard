@@ -243,6 +243,192 @@
                   {{ entry.flatClaims ? t('common.yes') : t('common.no') }}
                 </v-chip>
               </div>
+
+              <!-- DCQL section -->
+              <template v-if="entry.dcql">
+                <v-divider class="mb-3" />
+                <div class="d-flex align-center mb-3">
+                  <v-icon
+                    start
+                    size="small"
+                    color="info"
+                  >
+                    mdi-file-document-check
+                  </v-icon>
+                  <span class="text-subtitle-2 font-weight-medium">
+                    {{ t('ccs.dcql') }}
+                  </span>
+                </div>
+
+                <!-- Credential Queries -->
+                <div class="mb-3">
+                  <span class="text-subtitle-2 text-medium-emphasis">
+                    {{ t('ccs.credentialQueries') }}
+                  </span>
+                  <v-chip
+                    class="ml-2"
+                    size="x-small"
+                    color="info"
+                    variant="tonal"
+                  >
+                    {{ entry.dcql.credentials?.length ?? 0 }}
+                  </v-chip>
+                </div>
+
+                <v-card
+                  v-for="(cq, cqIdx) in entry.dcql.credentials"
+                  :key="cqIdx"
+                  variant="outlined"
+                  class="mb-3 pa-3"
+                >
+                  <div
+                    v-if="cq.id"
+                    class="mb-1"
+                  >
+                    <span class="text-caption text-medium-emphasis">{{ t('ccs.credentialQueryId') }}:</span>
+                    <code class="ml-1">{{ cq.id }}</code>
+                  </div>
+                  <div
+                    v-if="cq.format"
+                    class="mb-1"
+                  >
+                    <span class="text-caption text-medium-emphasis">{{ t('ccs.credentialQueryFormat') }}:</span>
+                    <v-chip
+                      size="x-small"
+                      variant="outlined"
+                      class="ml-1"
+                    >
+                      {{ cq.format }}
+                    </v-chip>
+                  </div>
+                  <div
+                    v-if="cq.multiple"
+                    class="mb-1"
+                  >
+                    <span class="text-caption text-medium-emphasis">{{ t('ccs.credentialQueryMultiple') }}:</span>
+                    <v-chip
+                      size="x-small"
+                      color="success"
+                      variant="tonal"
+                      class="ml-1"
+                    >
+                      {{ t('common.yes') }}
+                    </v-chip>
+                  </div>
+                  <div
+                    v-if="cq.require_cryptographic_holder_binding === false"
+                    class="mb-1"
+                  >
+                    <span class="text-caption text-medium-emphasis">{{ t('ccs.requireCryptographicHolderBinding') }}:</span>
+                    <v-chip
+                      size="x-small"
+                      color="warning"
+                      variant="tonal"
+                      class="ml-1"
+                    >
+                      {{ t('common.no') }}
+                    </v-chip>
+                  </div>
+
+                  <!-- Metadata -->
+                  <div
+                    v-if="cq.meta"
+                    class="mb-1"
+                  >
+                    <span class="text-caption text-medium-emphasis">{{ t('ccs.metadata') }}:</span>
+                    <code class="ml-1 text-caption">{{ JSON.stringify(cq.meta) }}</code>
+                  </div>
+
+                  <!-- Claims -->
+                  <div
+                    v-if="cq.claims && cq.claims.length > 0"
+                    class="mb-1"
+                  >
+                    <span class="text-caption text-medium-emphasis">{{ t('ccs.claimsQueries') }}:</span>
+                    <div
+                      v-for="(claim, clIdx) in cq.claims"
+                      :key="clIdx"
+                      class="ml-4 mb-1"
+                    >
+                      <code class="text-caption">{{ JSON.stringify(claim) }}</code>
+                    </div>
+                  </div>
+
+                  <!-- Trusted Authorities -->
+                  <div
+                    v-if="cq.trusted_authorities && cq.trusted_authorities.length > 0"
+                    class="mb-1"
+                  >
+                    <span class="text-caption text-medium-emphasis">{{ t('ccs.trustedAuthorities') }}:</span>
+                    <div
+                      v-for="(ta, taIdx) in cq.trusted_authorities"
+                      :key="taIdx"
+                      class="ml-4 mb-1"
+                    >
+                      <v-chip
+                        size="x-small"
+                        variant="outlined"
+                        class="mr-1"
+                      >
+                        {{ ta.type }}
+                      </v-chip>
+                      <span class="text-caption">{{ ta.values?.join(', ') }}</span>
+                    </div>
+                  </div>
+                </v-card>
+
+                <!-- Credential Set Queries -->
+                <template v-if="entry.dcql.credential_sets && entry.dcql.credential_sets.length > 0">
+                  <div class="mb-3">
+                    <span class="text-subtitle-2 text-medium-emphasis">
+                      {{ t('ccs.credentialSetQueries') }}
+                    </span>
+                    <v-chip
+                      class="ml-2"
+                      size="x-small"
+                      color="info"
+                      variant="tonal"
+                    >
+                      {{ entry.dcql.credential_sets.length }}
+                    </v-chip>
+                  </div>
+                  <v-card
+                    v-for="(csq, csqIdx) in entry.dcql.credential_sets"
+                    :key="csqIdx"
+                    variant="outlined"
+                    class="mb-3 pa-3"
+                  >
+                    <div
+                      v-if="csq.options"
+                      class="mb-1"
+                    >
+                      <span class="text-caption text-medium-emphasis">{{ t('ccs.credentialSetOptions') }}:</span>
+                      <code class="ml-1 text-caption">{{ JSON.stringify(csq.options) }}</code>
+                    </div>
+                    <div
+                      v-if="csq.required"
+                      class="mb-1"
+                    >
+                      <span class="text-caption text-medium-emphasis">{{ t('ccs.credentialSetRequired') }}:</span>
+                      <v-chip
+                        size="x-small"
+                        color="success"
+                        variant="tonal"
+                        class="ml-1"
+                      >
+                        {{ t('common.yes') }}
+                      </v-chip>
+                    </div>
+                    <div
+                      v-if="csq.purpose"
+                      class="mb-1"
+                    >
+                      <span class="text-caption text-medium-emphasis">{{ t('ccs.credentialSetPurpose') }}:</span>
+                      <code class="ml-1 text-caption">{{ JSON.stringify(csq.purpose) }}</code>
+                    </div>
+                  </v-card>
+                </template>
+              </template>
             </v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>

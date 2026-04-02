@@ -26,7 +26,44 @@
             }
           ]
         }
-      ]
+      ],
+      "dcql": {
+        "credentials": [
+          {
+            "id": "delivery-credential",
+            "format": "vc+sd-jwt",
+            "claims": [
+              {
+                "id": "delivery-address",
+                "path": ["address", "street"]
+              },
+              {
+                "id": "delivery-status",
+                "path": ["status"],
+                "values": ["active", "pending"]
+              }
+            ],
+            "meta": {
+              "vct_values": ["PacketDeliveryCredential"]
+            },
+            "trusted_authorities": [
+              {
+                "type": "etsi_tl",
+                "values": ["http://trusted-authority:8080"]
+              }
+            ]
+          }
+        ],
+        "credential_sets": [
+          {
+            "options": [["delivery-credential"]],
+            "required": true,
+            "purpose": {
+              "reason": "Verify delivery authorization"
+            }
+          }
+        ]
+      }
     }
   }
 }

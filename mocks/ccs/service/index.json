@@ -31,7 +31,24 @@
                 }
               ]
             }
-          ]
+          ],
+          "dcql": {
+            "credentials": [
+              {
+                "id": "delivery-credential",
+                "format": "vc+sd-jwt",
+                "claims": [
+                  {
+                    "id": "delivery-address",
+                    "path": ["address", "street"]
+                  }
+                ],
+                "meta": {
+                  "vct_values": ["PacketDeliveryCredential"]
+                }
+              }
+            ]
+          }
         }
       }
     },
