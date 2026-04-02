@@ -10,9 +10,84 @@
       {{ t('common.back') }}
     </v-btn>
 
-    <h1 class="text-h4 mb-4">
-      {{ t('policies.detailTitle') }}
-    </h1>
+    <div class="d-flex align-center mb-4">
+      <h1 class="text-h4">
+        {{ t('policies.detailTitle') }}
+      </h1>
+      <v-spacer />
+      <v-btn
+        v-if="store.selectedPolicy"
+        color="primary"
+        variant="tonal"
+        class="mr-2"
+        prepend-icon="mdi-pencil"
+        :to="{ name: 'policy-edit', params: { id } }"
+      >
+        {{ t('common.edit') }}
+      </v-btn>
+      <v-btn
+        v-if="store.selectedPolicy"
+        color="error"
+        variant="tonal"
+        prepend-icon="mdi-delete"
+        :loading="store.saving"
+        @click="showDeleteDialog = true"
+      >
+        {{ t('common.delete') }}
+      </v-btn>
+    </div>
+
+    <!-- Delete confirmation dialog -->
+    <v-dialog
+      v-model="showDeleteDialog"
+      max-width="500"
+    >
+      <v-card>
+        <v-card-title>{{ t('common.confirmDelete') }}</v-card-title>
+        <v-card-text>
+          {{ t('policies.confirmDeletePolicy') }}
+          <br>
+          <span class="text-medium-emphasis text-body-2">
+            {{ t('common.deleteWarning') }}
+          </span>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            variant="text"
+            @click="showDeleteDialog = false"
+          >
+            {{ t('common.cancel') }}
+          </v-btn>
+          <v-btn
+            color="error"
+            variant="flat"
+            :loading="store.saving"
+            @click="handleDelete"
+          >
+            {{ t('common.delete') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Success snackbar -->
+    <v-snackbar
+      v-model="showSuccess"
+      color="success"
+      :timeout="SNACKBAR_TIMEOUT"
+    >
+      {{ successMessage }}
+    </v-snackbar>
+
+    <!-- Error snackbar -->
+    <v-snackbar
+      v-model="showError"
+      color="error"
+      :timeout="SNACKBAR_TIMEOUT"
+    >
+      {{ errorMessage }}
+    </v-snackbar>
 
     <!-- Loading state -->
     <template v-if="store.detailLoading">
@@ -71,7 +146,7 @@
         </v-card-text>
       </v-card>
 
-      <!-- ODRL Policy JSON card -->
+      <!-- ODRL Policy section with structured display -->
       <v-card
         v-if="parsedOdrl"
         class="mb-4"
@@ -92,6 +167,76 @@
           </v-chip>
         </v-card-title>
         <v-card-text>
+          <!-- Permissions display -->
+          <template v-if="odrlPermissions.length > 0">
+            <div class="text-subtitle-2 text-medium-emphasis mb-2">
+              {{ t('policies.permissions') }}
+            </div>
+            <v-card
+              v-for="(perm, permIdx) in odrlPermissions"
+              :key="permIdx"
+              variant="outlined"
+              class="mb-3 pa-3"
+            >
+              <div class="mb-2">
+                <span class="text-caption text-medium-emphasis">{{ t('policies.target') }}:</span>
+                <v-chip
+                  size="small"
+                  variant="tonal"
+                  color="info"
+                  class="ml-2"
+                >
+                  {{ perm.target }}
+                </v-chip>
+              </div>
+              <div class="mb-2">
+                <span class="text-caption text-medium-emphasis">{{ t('policies.action') }}:</span>
+                <v-chip
+                  size="small"
+                  variant="tonal"
+                  color="success"
+                  class="ml-2"
+                >
+                  {{ perm.action }}
+                </v-chip>
+              </div>
+              <template v-if="perm.constraint && perm.constraint.length > 0">
+                <div class="text-caption text-medium-emphasis mb-1">
+                  {{ t('policies.constraints') }}:
+                </div>
+                <div
+                  v-for="(con, conIdx) in perm.constraint"
+                  :key="conIdx"
+                  class="ml-4 mb-1 d-flex align-center ga-1"
+                >
+                  <v-chip
+                    size="small"
+                    variant="outlined"
+                  >
+                    {{ con.leftOperand }}
+                  </v-chip>
+                  <v-chip
+                    size="small"
+                    variant="tonal"
+                    color="warning"
+                  >
+                    {{ con.operator }}
+                  </v-chip>
+                  <v-chip
+                    size="small"
+                    variant="outlined"
+                  >
+                    {{ con.rightOperand }}
+                  </v-chip>
+                </div>
+              </template>
+            </v-card>
+          </template>
+
+          <!-- Raw ODRL JSON fallback -->
+          <div class="text-subtitle-2 text-medium-emphasis mt-3 mb-2">
+            {{ t('policies.rawJson') }}
+          </div>
           <pre class="text-body-2 pa-3 bg-grey-lighten-4 rounded overflow-x-auto">{{ formattedOdrl }}</pre>
         </v-card-text>
       </v-card>
@@ -108,7 +253,7 @@
           {{ t('policies.regoCode') }}
         </v-card-title>
         <v-card-text>
-          <pre class="text-body-2 pa-3 bg-grey-lighten-4 rounded overflow-x-auto">{{ store.selectedPolicy.rego }}</pre>
+          <pre class="text-body-2 pa-3 bg-grey-lighten-4 rounded overflow-x-auto"><code>{{ store.selectedPolicy.rego }}</code></pre>
         </v-card-text>
       </v-card>
     </template>
@@ -116,13 +261,49 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { usePoliciesStore } from '@/stores/policies'
+
+/** Timeout in milliseconds for snackbar messages. */
+const SNACKBAR_TIMEOUT = 3000
+
+/** Number of spaces used for JSON indentation. */
+const JSON_INDENT = 2
 
 const props = defineProps<{ id: string }>()
 const { t } = useI18n()
+const router = useRouter()
 const store = usePoliciesStore()
+
+/** Whether the delete confirmation dialog is visible. */
+const showDeleteDialog = ref(false)
+/** Whether the success snackbar is visible. */
+const showSuccess = ref(false)
+/** Success message text. */
+const successMessage = ref('')
+/** Whether the error snackbar is visible. */
+const showError = ref(false)
+/** Error message text. */
+const errorMessage = ref('')
+
+/**
+ * Handle policy deletion after confirmation.
+ * Calls the store delete action and navigates back on success.
+ */
+async function handleDelete(): Promise<void> {
+  const success = await store.deletePolicy(props.id)
+  showDeleteDialog.value = false
+  if (success) {
+    successMessage.value = t('policies.deleteSuccess')
+    showSuccess.value = true
+    router.push({ name: 'policies-list' })
+  } else {
+    errorMessage.value = store.saveError ?? t('policies.deleteError')
+    showError.value = true
+  }
+}
 
 /**
  * Parse the ODRL JSON string from the selected policy.
@@ -143,13 +324,17 @@ const parsedOdrl = computed(() => {
 /** The ODRL @type extracted from the parsed ODRL JSON (e.g. "Set", "Offer"). */
 const odrlType = computed(() => parsedOdrl.value?.['@type'] ?? null)
 
+/** ODRL permissions extracted from the parsed JSON. */
+const odrlPermissions = computed(() => {
+  if (!parsedOdrl.value?.permission) return []
+  return Array.isArray(parsedOdrl.value.permission) ? parsedOdrl.value.permission : []
+})
+
 /** Pretty-printed ODRL JSON for display. */
 const formattedOdrl = computed(() => {
   if (!parsedOdrl.value) {
     return store.selectedPolicy?.odrl ?? ''
   }
-  /** Number of spaces used for JSON indentation. */
-  const JSON_INDENT = 2
   return JSON.stringify(parsedOdrl.value, null, JSON_INDENT)
 })
 

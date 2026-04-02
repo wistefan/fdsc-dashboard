@@ -1,13 +1,13 @@
 /**
  * Pinia store for ODRL Policies state management.
  *
- * Uses the ODRL Policy API for listing policies (paginated) and fetching
- * individual policy details by ID.
+ * Uses the ODRL Policy API for listing policies (paginated), fetching
+ * individual policy details by ID, and performing CRUD operations.
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { PolicyService, ApiError } from '@/api/generated/odrl'
-import type { Policy, PolicyList } from '@/api/generated/odrl'
+import type { Policy, PolicyList, OdrlPolicyJson } from '@/api/generated/odrl'
 
 /** Default number of policies per page. */
 const DEFAULT_PAGE_SIZE = 10
@@ -34,6 +34,12 @@ export const usePoliciesStore = defineStore('policies', () => {
   const detailLoading = ref(false)
   /** Error message from the last detail fetch, or null if successful. */
   const detailError = ref<string | null>(null)
+
+  // ── CRUD state ──────────────────────────────────────────────────────
+  /** Whether a create/update/delete operation is in progress. */
+  const saving = ref(false)
+  /** Error message from the last create/update/delete operation. */
+  const saveError = ref<string | null>(null)
 
   /** Whether the policies list is empty (after a successful fetch). */
   const isEmpty = computed(() => !listLoading.value && policies.value.length === 0)
@@ -110,6 +116,74 @@ export const usePoliciesStore = defineStore('policies', () => {
     }
   }
 
+  /**
+   * Create a new policy from an ODRL JSON object.
+   *
+   * @param policy - The ODRL policy JSON payload to create.
+   * @returns `true` on success, `false` on error.
+   */
+  async function createPolicy(policy: OdrlPolicyJson): Promise<boolean> {
+    saving.value = true
+    saveError.value = null
+
+    try {
+      await PolicyService.createPolicy({ requestBody: policy })
+      return true
+    } catch (error) {
+      saveError.value =
+        error instanceof ApiError ? error.message : String(error)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
+   * Update an existing policy by ID using the PUT endpoint.
+   *
+   * @param id - The ID of the policy to update.
+   * @param policy - The updated ODRL policy JSON payload.
+   * @returns `true` on success, `false` on error.
+   */
+  async function updatePolicy(id: string, policy: OdrlPolicyJson): Promise<boolean> {
+    saving.value = true
+    saveError.value = null
+
+    try {
+      await PolicyService.createPolicyWithId({ id, requestBody: policy })
+      return true
+    } catch (error) {
+      saveError.value =
+        error instanceof ApiError ? error.message : String(error)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
+   * Delete a policy by ID.
+   *
+   * @param id - The ID of the policy to delete.
+   * @returns `true` on success, `false` on error.
+   */
+  async function deletePolicy(id: string): Promise<boolean> {
+    saving.value = true
+    saveError.value = null
+
+    try {
+      await PolicyService.deletePolicyById({ id })
+      selectedPolicy.value = null
+      return true
+    } catch (error) {
+      saveError.value =
+        error instanceof ApiError ? error.message : String(error)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
   /** Reset the store to its initial state. */
   function $reset(): void {
     policies.value = []
@@ -121,6 +195,8 @@ export const usePoliciesStore = defineStore('policies', () => {
     selectedPolicy.value = null
     detailLoading.value = false
     detailError.value = null
+    saving.value = false
+    saveError.value = null
   }
 
   return {
@@ -134,12 +210,17 @@ export const usePoliciesStore = defineStore('policies', () => {
     selectedPolicy,
     detailLoading,
     detailError,
+    saving,
+    saveError,
     // Computed
     isEmpty,
     totalPages,
     // Actions
     fetchPolicies,
     fetchPolicyDetail,
+    createPolicy,
+    updatePolicy,
+    deletePolicy,
     $reset,
   }
 })

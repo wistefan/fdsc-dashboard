@@ -184,6 +184,25 @@
     "noPolicies": "No policies found",
     "noServices": "No services found",
     "confirmDeletePolicy": "Are you sure you want to delete this policy?",
-    "confirmDeleteService": "Are you sure you want to delete this service?"
+    "confirmDeleteService": "Are you sure you want to delete this service?",
+    "permissions": "Permissions",
+    "permission": "Permission",
+    "addPermission": "Add Permission",
+    "noPermissions": "No permissions configured",
+    "target": "Target",
+    "action": "Action",
+    "constraints": "Constraints",
+    "constraint": "Constraint",
+    "addConstraint": "Add Constraint",
+    "leftOperand": "Left Operand",
+    "operator": "Operator",
+    "rightOperand": "Right Operand",
+    "odrlContext": "ODRL Context",
+    "jsonPreview": "ODRL JSON Preview",
+    "rawJson": "Raw JSON",
+    "createSuccess": "Policy created successfully",
+    "updateSuccess": "Policy updated successfully",
+    "deleteSuccess": "Policy deleted successfully",
+    "deleteError": "Failed to delete policy"
   }
 }
