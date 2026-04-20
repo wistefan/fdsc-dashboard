@@ -12,6 +12,7 @@ import { IssuerService } from '@/api/generated/til'
 import type { IssuersResponse, IssuerEntry } from '@/api/generated/tir'
 import type { TrustedIssuer } from '@/api/generated/til'
 import { ApiError } from '@/api/generated/tir'
+import { ApiError as TilApiError } from '@/api/generated/til'
 
 /** Default number of issuers per page. */
 const DEFAULT_PAGE_SIZE = 10
@@ -29,6 +30,12 @@ export const useTilStore = defineStore('til', () => {
   const selectedIssuer = ref<TrustedIssuer | null>(null)
   const detailLoading = ref(false)
   const detailError = ref<string | null>(null)
+
+  // ── CRUD state ──────────────────────────────────────────────────────
+  /** Whether a create/update/delete operation is in progress. */
+  const saving = ref(false)
+  /** Error message from the last create/update/delete operation. */
+  const saveError = ref<string | null>(null)
 
   /** Whether the issuers list is empty (after a successful fetch). */
   const isEmpty = computed(() => !listLoading.value && issuers.value.length === 0)
@@ -88,6 +95,81 @@ export const useTilStore = defineStore('til', () => {
     }
   }
 
+  /**
+   * Create a new trusted issuer.
+   *
+   * @param issuer - The issuer payload to create.
+   * @returns The created issuer's response, or `undefined` on error.
+   */
+  async function createIssuer(issuer: TrustedIssuer): Promise<boolean> {
+    saving.value = true
+    saveError.value = null
+
+    try {
+      await IssuerService.createTrustedIssuer({ requestBody: issuer })
+      return true
+    } catch (error) {
+      saveError.value =
+        error instanceof ApiError || error instanceof TilApiError
+          ? error.message
+          : String(error)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
+   * Update an existing trusted issuer.
+   *
+   * @param did - The DID of the issuer to update.
+   * @param issuer - The updated issuer payload.
+   * @returns `true` on success, `false` on error.
+   */
+  async function updateIssuer(did: string, issuer: TrustedIssuer): Promise<boolean> {
+    saving.value = true
+    saveError.value = null
+
+    try {
+      const updated = await IssuerService.updateIssuer({ did, requestBody: issuer })
+      selectedIssuer.value = updated
+      return true
+    } catch (error) {
+      saveError.value =
+        error instanceof ApiError || error instanceof TilApiError
+          ? error.message
+          : String(error)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
+   * Delete a trusted issuer by DID.
+   *
+   * @param did - The DID of the issuer to delete.
+   * @returns `true` on success, `false` on error.
+   */
+  async function deleteIssuer(did: string): Promise<boolean> {
+    saving.value = true
+    saveError.value = null
+
+    try {
+      await IssuerService.deleteIssuerById({ did })
+      selectedIssuer.value = null
+      return true
+    } catch (error) {
+      saveError.value =
+        error instanceof ApiError || error instanceof TilApiError
+          ? error.message
+          : String(error)
+      return false
+    } finally {
+      saving.value = false
+    }
+  }
+
   /** Reset the store to its initial state. */
   function $reset(): void {
     issuers.value = []
@@ -99,6 +181,8 @@ export const useTilStore = defineStore('til', () => {
     selectedIssuer.value = null
     detailLoading.value = false
     detailError.value = null
+    saving.value = false
+    saveError.value = null
   }
 
   return {
@@ -112,12 +196,17 @@ export const useTilStore = defineStore('til', () => {
     selectedIssuer,
     detailLoading,
     detailError,
+    saving,
+    saveError,
     // Computed
     isEmpty,
     totalPages,
     // Actions
     fetchIssuers,
     fetchIssuerDetail,
+    createIssuer,
+    updateIssuer,
+    deleteIssuer,
     $reset,
   }
 })

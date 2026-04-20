@@ -6,14 +6,22 @@ module.exports = {
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
   ],
-  parserOptions: {
-    ecmaVersion: 'latest',
-  },
   parser: 'vue-eslint-parser',
   parserOptions: {
+    ecmaVersion: 'latest',
     parser: '@typescript-eslint/parser',
   },
   rules: {
     'vue/multi-word-component-names': 'off',
+    'vue/valid-v-slot': ['error', { allowModifiers: true }],
   },
+  overrides: [
+    {
+      files: ['**/__tests__/**/*.spec.ts', '**/*.spec.ts', 'src/test-setup.ts'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+      },
+    },
+  ],
 }
