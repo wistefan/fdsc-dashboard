@@ -1,0 +1,8 @@
+[
+  {
+    "id": "svc-policy-002",
+    "odrl:uid": "urn:uuid:d2e3f4a5-b6c7-8901-defg-234567890abc",
+    "odrl": "{\"@context\":\"http://www.w3.org/ns/odrl.jsonld\",\"@type\":\"Offer\",\"uid\":\"urn:uuid:d2e3f4a5-b6c7-8901-defg-234567890abc\",\"permission\":[{\"target\":\"urn:asset:pet-vaccination-records\",\"action\":\"read\",\"constraint\":[{\"leftOperand\":\"role\",\"operator\":\"isAnyOf\",\"rightOperand\":[\"VET_PROFESSIONAL\",\"PET_SHELTER\"]}]}]}",
+    "rego": "package policy.svc_policy_002\n\ndefault allow = false\n\nallow {\n  input.role == \"VET_PROFESSIONAL\"\n}\n\nallow {\n  input.role == \"PET_SHELTER\"\n}"
+  }
+]

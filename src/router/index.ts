@@ -15,6 +15,17 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/til/TilListView.vue'),
   },
   {
+    path: '/til/new',
+    name: 'til-create',
+    component: () => import('@/views/til/TilFormView.vue'),
+  },
+  {
+    path: '/til/:did/edit',
+    name: 'til-edit',
+    component: () => import('@/views/til/TilFormView.vue'),
+    props: true,
+  },
+  {
     path: '/til/:did',
     name: 'til-detail',
     component: () => import('@/views/til/TilDetailView.vue'),
@@ -24,6 +35,17 @@ const routes: RouteRecordRaw[] = [
     path: '/ccs',
     name: 'ccs-list',
     component: () => import('@/views/ccs/CcsListView.vue'),
+  },
+  {
+    path: '/ccs/new',
+    name: 'ccs-create',
+    component: () => import('@/views/ccs/CcsFormView.vue'),
+  },
+  {
+    path: '/ccs/:id/edit',
+    name: 'ccs-edit',
+    component: () => import('@/views/ccs/CcsFormView.vue'),
+    props: true,
   },
   {
     path: '/ccs/:id',
@@ -37,8 +59,37 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/policies/PolicyListView.vue'),
   },
   {
+    path: '/policies/new',
+    name: 'policy-create',
+    component: () => import('@/views/policies/PolicyFormView.vue'),
+  },
+  {
+    path: '/policies/:id/edit',
+    name: 'policy-edit',
+    component: () => import('@/views/policies/PolicyFormView.vue'),
+    props: true,
+  },
+  {
     path: '/policies/:id',
     name: 'policy-detail',
+    component: () => import('@/views/policies/PolicyDetailView.vue'),
+    props: true,
+  },
+  {
+    path: '/policies/service/:serviceId/new',
+    name: 'service-policy-create',
+    component: () => import('@/views/policies/PolicyFormView.vue'),
+    props: true,
+  },
+  {
+    path: '/policies/service/:serviceId/:id/edit',
+    name: 'service-policy-edit',
+    component: () => import('@/views/policies/PolicyFormView.vue'),
+    props: true,
+  },
+  {
+    path: '/policies/service/:serviceId/:id',
+    name: 'service-policy-detail',
     component: () => import('@/views/policies/PolicyDetailView.vue'),
     props: true,
   },

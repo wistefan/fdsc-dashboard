@@ -10,6 +10,7 @@ A Vue 3 dashboard for managing FIWARE Data Space Connector (DSC) resources inclu
 - **Pinia** – state management
 - **Vue I18n** – internationalization (English by default)
 - **Vite** – build tooling and dev server
+- **Vitest** – unit testing framework
 
 ## Prerequisites
 
@@ -75,15 +76,121 @@ Stop the stack with:
 docker compose down
 ```
 
+## Running Tests
+
+The project uses [Vitest](https://vitest.dev/) as its test framework with `jsdom` for DOM emulation and `@vue/test-utils` for Vue component testing.
+
+### Run all tests once
+
+```bash
+npm run test
+```
+
+This executes all `*.spec.ts` files under `src/` in a single run and exits.
+
+### Run tests in watch mode
+
+```bash
+npm run test:watch
+```
+
+Vitest will re-run affected tests automatically whenever source or test files change. This is the recommended mode during development.
+
+### Run a specific test file
+
+```bash
+npx vitest run src/stores/__tests__/til.spec.ts
+```
+
+### Run tests matching a name pattern
+
+```bash
+npx vitest run -t "should fetch issuers"
+```
+
+### Test file locations
+
+Test files are co-located with the source code they cover:
+
+| Store   | Test File                                |
+|---------|------------------------------------------|
+| TIL     | `src/stores/__tests__/til.spec.ts`       |
+| CCS     | `src/stores/__tests__/ccs.spec.ts`       |
+| Policies| `src/stores/__tests__/policies.spec.ts`  |
+
+### Configuration
+
+The Vitest configuration is defined in `vitest.config.ts` at the project root. It uses the `jsdom` test environment, enables global test APIs (`describe`, `it`, `expect`), and resolves the `@/` path alias to `src/`.
+
 ## Available Scripts
 
-| Command           | Description                                   |
-|-------------------|-----------------------------------------------|
-| `npm run dev`     | Start the Vite dev server with HMR            |
-| `npm run build`   | Type-check and build for production           |
-| `npm run preview` | Preview the production build locally          |
-| `npm run lint`    | Lint source files with ESLint (auto-fix)      |
-| `npm run format`  | Format source files with Prettier             |
+| Command              | Description                                   |
+|----------------------|-----------------------------------------------|
+| `npm run dev`        | Start the Vite dev server with HMR            |
+| `npm run build`      | Type-check and build for production           |
+| `npm run preview`    | Preview the production build locally          |
+| `npm run test`       | Run all unit tests once                       |
+| `npm run test:watch` | Run unit tests in watch mode                  |
+| `npm run lint`       | Lint source files with ESLint (auto-fix)      |
+| `npm run format`     | Format source files with Prettier             |
+
+## Linting & Code Formatting
+
+The project uses [ESLint](https://eslint.org/) for static analysis and [Prettier](https://prettier.io/) for code formatting.
+
+### Run the linter
+
+```bash
+npm run lint
+```
+
+This runs ESLint across all `.vue`, `.js`, `.jsx`, `.cjs`, `.mjs`, `.ts`, `.tsx`, `.cts`, and `.mts` files with the `--fix` flag, which automatically corrects fixable issues (e.g. missing semicolons, import order). Non-fixable issues are reported in the terminal output.
+
+### Run the linter without auto-fix
+
+To check for issues without modifying files:
+
+```bash
+npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts
+```
+
+### Lint a specific file or directory
+
+```bash
+npx eslint src/views/til/TilListView.vue --fix
+npx eslint src/stores/ --fix
+```
+
+### Format code with Prettier
+
+```bash
+npm run format
+```
+
+This formats all files under `src/` using Prettier.
+
+### ESLint configuration
+
+The ESLint configuration lives in `.eslintrc.cjs` and extends:
+
+| Preset                                  | Purpose                                  |
+|-----------------------------------------|------------------------------------------|
+| `plugin:vue/vue3-recommended`           | Vue 3 recommended rules                  |
+| `eslint:recommended`                    | ESLint core recommended rules            |
+| `plugin:@typescript-eslint/recommended` | TypeScript-specific recommended rules    |
+
+Notable rule overrides:
+
+- `vue/multi-word-component-names` is **off** — single-word component names are allowed.
+- `vue/valid-v-slot` allows modifiers (e.g. `v-slot:item.actions`).
+- Test files (`*.spec.ts`, `src/test-setup.ts`) have relaxed rules: `@typescript-eslint/no-explicit-any` and `@typescript-eslint/no-unused-vars` are disabled.
+
+### Integrating with your editor
+
+Most editors support ESLint integration:
+
+- **VS Code**: Install the [ESLint extension](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint). Enable "Format on Save" and set ESLint as the default formatter for `.vue` and `.ts` files.
+- **WebStorm / IntelliJ**: ESLint support is built in. Go to *Settings → Languages & Frameworks → JavaScript → Code Quality Tools → ESLint* and select "Automatic ESLint configuration".
 
 ## Building for Production
 
@@ -116,6 +223,7 @@ src/
   main.ts              # Application entry point
   router/index.ts      # Route definitions
   stores/index.ts      # Pinia store setup
+    __tests__/           # Unit tests for stores
   plugins/
     vuetify.ts         # Vuetify configuration and theming
     i18n.ts            # Vue I18n setup

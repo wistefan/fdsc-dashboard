@@ -1,0 +1,10 @@
+[
+  {
+    "id": "delivery-service",
+    "policyPath": "/service/delivery-service/policy"
+  },
+  {
+    "id": "pet-service",
+    "policyPath": "/service/pet-service/policy"
+  }
+]
