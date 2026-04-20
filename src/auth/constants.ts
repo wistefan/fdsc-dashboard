@@ -64,3 +64,31 @@ export const LOGIN_ROUTE_PATH = '/login' as const
  * is bounced through the identity provider's authorisation endpoint.
  */
 export const RETURN_TO_STORAGE_KEY = 'fdsc.auth.returnTo' as const
+
+/**
+ * Prefix applied to every `sessionStorage` key used by the OIDC client
+ * wrapper. Each provider gets its own namespace so that two providers
+ * running side-by-side (e.g. Keycloak and Auth0) cannot stomp on each
+ * other's interaction-state entries.
+ *
+ * The resolved prefix is `${OIDC_STORAGE_KEY_PREFIX}${providerId}.`, e.g.
+ * `fdsc.auth.oidc.keycloak.`.
+ */
+export const OIDC_STORAGE_KEY_PREFIX = 'fdsc.auth.oidc.' as const
+
+/**
+ * Default OAuth2 response type — authorisation-code flow. Combined with
+ * `oidc-client-ts`' built-in PKCE support this is the only flow the
+ * dashboard uses.
+ */
+export const OAUTH_RESPONSE_TYPE_CODE = 'code' as const
+
+/**
+ * Prefix (without a trailing `:providerId`) of the Vue Router path at which
+ * provider callbacks land. The full callback path for a provider with id
+ * `keycloak` is `/callback/keycloak`.
+ *
+ * Consumed by the OIDC client wrapper to compute absolute redirect URIs
+ * and by the router configuration to register the matching dynamic route.
+ */
+export const CALLBACK_ROUTE_PREFIX = '/callback/' as const
