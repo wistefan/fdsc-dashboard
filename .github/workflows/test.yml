@@ -1,0 +1,47 @@
+name: Test
+
+# Runs lint, type-check, build, and (when present) unit tests on every push
+# and pull request. Guards the project from regressions.
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+# Default Node version used across all jobs. Pinned to match the Dockerfile.
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  test:
+    name: Lint & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate API clients
+        # The OpenAPI-derived clients are generated at build-time; `npm run build`
+        # depends on them. Failing early here surfaces upstream spec drift.
+        run: npm run generate:api
+
+      - name: Lint
+        run: npm run lint -- --no-fix --max-warnings=0
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit tests (if present)
+        # `--if-present` is an npm feature that no-ops when the script does not
+        # exist — this keeps the workflow green for the current tree and
+        # automatically activates once a `test` script is added.
+        run: npm test --if-present
