@@ -257,3 +257,77 @@ This dashboard is designed to work with the following FIWARE services:
 - **Policies** – [ODRL-PAP](https://github.com/SEAMWARE/odrl-pap)
 
 API clients are kept in sync with the OpenAPI specifications published by these services.
+
+## CI / CD Pipeline
+
+The project ships with a full GitHub Actions pipeline. The workflows live under
+[`.github/workflows/`](.github/workflows/).
+
+### Overview
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `pr-labels.yml` | `pull_request` | Enforces exactly one `major` / `minor` / `patch` label and validates the PR description format. |
+| `test.yml`      | `push`, `pull_request` | Runs `npm ci`, `npm run generate:api`, `npm run lint`, `npm run build`, and `npm test --if-present`. |
+| `pr-build.yml`  | `pull_request` | Builds a multi-arch (`linux/amd64`, `linux/arm64`) Docker image and pushes it to Quay.io tagged `<nextVersion>-PRE-<shortSha>`. |
+| `release.yml`   | `push` to `main` | Computes the next version, tags the repo, builds and pushes the multi-arch image tagged `<version>` (and `latest`), promotes release notes, and creates a GitHub Release. |
+
+### Semantic Versioning via PR Labels
+
+Every PR **must** carry exactly one of these labels:
+
+- `major` – breaking changes; bumps `MAJOR`, resets `MINOR`/`PATCH`.
+- `minor` – new features, backward compatible; bumps `MINOR`, resets `PATCH`.
+- `patch` – bug fixes, docs, tooling; bumps `PATCH`.
+
+The workflow `pr-labels.yml` — modelled after
+[FIWARE/contract-management's `check.yml`](https://github.com/FIWARE/contract-management/blob/main/.github/workflows/check.yml)
+— fails the PR if the rule is violated.
+
+### Docker Image Tagging
+
+All images are pushed to
+[`quay.io/seamware/fdsc-dashboard`](https://quay.io/repository/seamware/fdsc-dashboard).
+
+- **Pull-request builds** → `quay.io/seamware/fdsc-dashboard:<nextVersion>-PRE-<shortSha>`
+  (the `-PRE-` marker makes them easy to spot and prune).
+- **Main (release) builds** → `quay.io/seamware/fdsc-dashboard:<version>` and
+  `:latest`.
+
+Images are built for `linux/amd64` and `linux/arm64` via `docker/buildx`.
+
+### Required Secrets
+
+Configure these in the repository settings (`Settings → Secrets and variables → Actions`):
+
+| Secret           | Purpose                                               |
+|------------------|-------------------------------------------------------|
+| `QUAY_USERNAME`  | Robot account or user login for `quay.io`             |
+| `QUAY_PASSWORD`  | Token/password for the above                          |
+
+### PR Description Format
+
+PRs must follow the template in
+[`.github/pull_request_template.md`](.github/pull_request_template.md). The CI
+rejects PRs that are missing the `## Summary` or `## Release Notes` sections.
+The `## Release Notes` content is promoted to
+[`release-notes/<version>.md`](release-notes/) on merge.
+
+### Release-Notes Mechanism
+
+Two options for authoring release notes:
+
+1. **Inline** — fill in the `## Release Notes` section of the PR description
+   (recommended for most changes).
+2. **Dedicated file** — add `release-notes/next.md` on the PR branch.
+   The release workflow prefers this file over the PR body and renames it
+   to `release-notes/<version>.md` on merge. Use this for long-form or
+   multi-section notes.
+
+On every merge to `main`, the release workflow:
+
+1. Writes `release-notes/<version>.md` using the resolution above.
+2. Regenerates [`RELEASE-NOTES.md`](RELEASE-NOTES.md) — a Markdown table
+   (`Version` / `Date` / `Notes`) linking to each file in `release-notes/`.
+3. Creates an annotated git tag `v<version>` and a GitHub Release whose
+   body is the notes file.
