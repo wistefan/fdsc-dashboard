@@ -5,4 +5,5 @@ automatically by the release workflow — do not edit by hand.
 
 | Version | Date | Notes |
 |---------|------|-------|
+| 0.1.0 | 2026-04-21 | [release-notes/0.1.0.md](release-notes/0.1.0.md) |
 | 0.0.1 | 2026-04-21 | [release-notes/0.0.1.md](release-notes/0.0.1.md) |
