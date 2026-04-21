@@ -40,22 +40,35 @@ Install the library and write its configuration; no custom logic is needed.
 **Files to add:**
 - `scripts/license-header.txt` — the exact header **body** from the ticket, without
   comment delimiters (`license-check-and-add` prepends `/*` / ` * ` / ` */` per
-  extension via its `license_formats` config). Stored once so the config and any
+  extension via its `licenseFormats` config). Stored once so the config and any
   future docs stay in sync.
-- `license-check-and-add-config.json` (repo root, the tool's default config path) —
-  declares:
+- `license-check-and-add-config.json` (repo root, passed explicitly via `-f` from
+  the npm scripts) — uses the fields actually defined by
+  [`license-check-and-add`'s config schema](https://github.com/awjh/license-check-and-add/blob/master/config-schema.json):
   - `"license"`: path to `scripts/license-header.txt`.
-  - `"exact_paths_method"`: `"EXCLUDE"` — walk the whole tree and skip listed paths.
-  - `"exact_paths"`: `["node_modules", "dist", "src/api/generated", "src/locales",
-    "public", "mocks", ".github", "scripts"]` (keep generated & non-source dirs out).
-  - `"file_type_method"`: `"INCLUDE"`.
-  - `"file_types"`: `[".ts", ".vue"]`.
-  - `"insert_license"`: `false` (the default; `add` overrides it at invocation time).
-  - `"license_formats"`:
-    - `".ts"` → `{ "prepend": "/*", "append": " */", "eachLine": { "prepend": " * " } }`
-    - `".vue"` → same block-comment wrapper as `.ts`; the library prepends before
-      `<template>` / `<script>` which SFCs accept.
-  - `"trailing_whitespace"`: `"TRIM"`.
+  - `"trailingWhitespace"`: `"TRIM"` (strip trailing whitespace so blank license
+    lines become ` *` rather than ` * `, and idempotent insertion/check matches).
+  - `"ignore"`: globby-style patterns that narrow the tool — which otherwise walks
+    `**/*` — down to only `src/**/*.{ts,vue}`. The library's `DEFAULT_IGNORES`
+    already skip `node_modules`, `dist`, `.git`, and `**/*.json`, so our list
+    adds the repo-specific directories to skip (`.github/**`, `mocks/**`,
+    `public/**`, `scripts/**`, `src/api/generated/**`, `src/locales/**`) and
+    every non-`.ts`/`.vue` extension present in the repo (`**/*.md`, `**/*.html`,
+    `**/*.yml`, `**/*.yaml`, `**/*.conf`, `**/*.env`, `**/*.cjs`, `**/*.mjs`,
+    `**/*.js`), plus a handful of extensionless config files at the root
+    (`.eslintignore`, `.gitignore`, `.prettierrc`, `Dockerfile`) and the
+    out-of-scope root `.ts`/JSON config files (`vite.config.ts`, `tsconfig.json`,
+    `tsconfig.node.json`).
+  - `"licenseFormats"`: one entry `"ts|vue"` →
+    `{ "prepend": "/*", "append": " */", "eachLine": { "prepend": " * " } }`.
+    The library prepends the formatted block before `<template>` / `<script>` in
+    SFCs, which Vue's compiler accepts.
+
+**Field-name note:** the plan previously referred to `exact_paths_method`,
+`file_types`, `license_formats`, and `trailing_whitespace` — those are not part of
+the `license-check-and-add@4.x` schema. The real fields are `ignore`,
+`licenseFormats`, and `trailingWhitespace`, and there is no explicit
+include-by-extension option (narrowing happens entirely via `ignore`).
 
 **Files to modify:**
 - `package.json` — add `license-check-and-add` (latest stable, currently `^4.x`) to
@@ -140,16 +153,19 @@ the mechanism works.
 **Files to modify:**
 - `scripts/generate-api-clients.sh` — at the end of the script (after the existing
   "post-generation fixes" section and before the final success echo), invoke the
-  library scoped to the regenerated tree, e.g.:
+  library scoped to the regenerated tree. Because `license-check-and-add@4.x`
+  exposes no CLI override for the config's `ignore` list, use a second
+  purpose-built config file (added by this step, e.g.
+  `license-check-and-add-generated-config.json` at the repo root) whose `ignore`
+  list skips everything *except* `src/api/generated/**` and whose `licenseFormats`
+  matches the primary config. Invoke it as:
   ```sh
   npx license-check-and-add add \
-    -f "${PROJECT_ROOT}/license-check-and-add-config.json" \
-    -i src/api/generated
+    -f "${PROJECT_ROOT}/license-check-and-add-generated-config.json"
   ```
-  (The `-i`/`--include-paths` flag overrides `exact_paths` for this single run so
-  the otherwise-excluded `src/api/generated` tree is processed.) Document the
-  reason in a short comment block. This keeps `src/api/generated/**` excluded from
-  the default check/apply but guarantees headers exist after regeneration.
+  Document the reason in a short comment block. This keeps
+  `src/api/generated/**` excluded from the default check/apply but guarantees
+  headers exist after regeneration.
 - `README.md` — add a new short section "License headers" under "Available Scripts"
   that:
   - Lists the two npm scripts and what they do.
