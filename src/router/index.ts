@@ -30,6 +30,9 @@ const PUBLIC_ROUTE_NAMES: ReadonlySet<string> = new Set([
   CALLBACK_ROUTE_NAME,
 ])
 
+/** Route `meta` flag requesting admin-only access to the route. */
+const ADMIN_ONLY_META = { requiresAdmin: true } as const
+
 /** Application route definitions. */
 const routes: RouteRecordRaw[] = [
   {
@@ -59,12 +62,14 @@ const routes: RouteRecordRaw[] = [
     path: '/til/new',
     name: 'til-create',
     component: () => import('@/views/til/TilFormView.vue'),
+    meta: { ...ADMIN_ONLY_META },
   },
   {
     path: '/til/:did/edit',
     name: 'til-edit',
     component: () => import('@/views/til/TilFormView.vue'),
     props: true,
+    meta: { ...ADMIN_ONLY_META },
   },
   {
     path: '/til/:did',
@@ -81,12 +86,14 @@ const routes: RouteRecordRaw[] = [
     path: '/ccs/new',
     name: 'ccs-create',
     component: () => import('@/views/ccs/CcsFormView.vue'),
+    meta: { ...ADMIN_ONLY_META },
   },
   {
     path: '/ccs/:id/edit',
     name: 'ccs-edit',
     component: () => import('@/views/ccs/CcsFormView.vue'),
     props: true,
+    meta: { ...ADMIN_ONLY_META },
   },
   {
     path: '/ccs/:id',
@@ -103,12 +110,14 @@ const routes: RouteRecordRaw[] = [
     path: '/policies/new',
     name: 'policy-create',
     component: () => import('@/views/policies/PolicyFormView.vue'),
+    meta: { ...ADMIN_ONLY_META },
   },
   {
     path: '/policies/:id/edit',
     name: 'policy-edit',
     component: () => import('@/views/policies/PolicyFormView.vue'),
     props: true,
+    meta: { ...ADMIN_ONLY_META },
   },
   {
     path: '/policies/:id',
@@ -121,12 +130,14 @@ const routes: RouteRecordRaw[] = [
     name: 'service-policy-create',
     component: () => import('@/views/policies/PolicyFormView.vue'),
     props: true,
+    meta: { ...ADMIN_ONLY_META },
   },
   {
     path: '/policies/service/:serviceId/:id/edit',
     name: 'service-policy-edit',
     component: () => import('@/views/policies/PolicyFormView.vue'),
     props: true,
+    meta: { ...ADMIN_ONLY_META },
   },
   {
     path: '/policies/service/:serviceId/:id',
@@ -174,6 +185,41 @@ function isPublicRoute(target: RouteLocationNormalized): boolean {
 }
 
 /**
+ * Determine whether a route is flagged as admin-only via `meta.requiresAdmin`.
+ *
+ * @param target - the route being evaluated.
+ * @returns `true` when the route requires the `admin` role.
+ */
+function requiresAdmin(target: RouteLocationNormalized): boolean {
+  return target.meta?.requiresAdmin === true
+}
+
+/**
+ * Resolve the fallback route an authenticated *viewer* should be bounced to
+ * when they try to reach an admin-only form. Prefers a sibling list view
+ * when the target belongs to a known resource family, otherwise falls back
+ * to the dashboard home.
+ *
+ * @param target - the admin-only route the viewer attempted to visit.
+ * @returns the route location to redirect to.
+ */
+function adminOnlyFallback(
+  target: RouteLocationNormalized,
+): { name: string } {
+  const name = typeof target.name === 'string' ? target.name : ''
+  if (name.startsWith('til-')) {
+    return { name: 'til-list' }
+  }
+  if (name.startsWith('ccs-')) {
+    return { name: 'ccs-list' }
+  }
+  if (name.startsWith('policy-') || name.startsWith('service-policy-')) {
+    return { name: 'policies-list' }
+  }
+  return { name: 'home' }
+}
+
+/**
  * Router-level authentication guard.
  *
  * When auth is *disabled* the guard is a no-op — this preserves the
@@ -181,6 +227,9 @@ function isPublicRoute(target: RouteLocationNormalized): boolean {
  *
  * When auth is *enabled*:
  * - Public routes (`/login`, `/callback/:providerId`) are always allowed.
+ * - Admin-only routes (`meta.requiresAdmin`) require the `admin` role;
+ *   authenticated viewers are redirected to the matching list view so
+ *   they cannot access create / edit screens through direct URLs.
  * - For any other route, an unauthenticated user is redirected to
  *   `/login` with their originally requested path preserved in
  *   `sessionStorage` so the callback view can restore it.
@@ -203,12 +252,16 @@ export function authGuard(
     next()
     return
   }
-  if (auth.isAuthenticated) {
-    next()
+  if (!auth.isAuthenticated) {
+    preserveReturnTo(to)
+    next({ name: LOGIN_ROUTE_NAME })
     return
   }
-  preserveReturnTo(to)
-  next({ name: LOGIN_ROUTE_NAME })
+  if (requiresAdmin(to) && !auth.isAdmin) {
+    next(adminOnlyFallback(to))
+    return
+  }
+  next()
 }
 
 router.beforeEach(authGuard)
