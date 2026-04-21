@@ -26,6 +26,7 @@
     "@vitejs/plugin-vue": "^5.0.4",
     "eslint": "^8.57.0",
     "eslint-plugin-vue": "^9.23.0",
+    "license-check-and-add": "^4.0.5",
     "openapi-typescript-codegen": "^0.30.0",
     "prettier": "^3.2.5",
     "sass": "^1.72.0",
