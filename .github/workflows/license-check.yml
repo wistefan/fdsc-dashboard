@@ -20,7 +20,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          rm -rf package-lock.json
+          npm install
+          npm ci
 
       - name: Verify license headers
         run: npm run license:check
