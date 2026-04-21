@@ -177,6 +177,7 @@
     "signInTitle": "Sign in to the dashboard",
     "signInSubtitle": "Choose an identity provider to continue.",
     "signOut": "Sign out",
+    "signingOut": "Signing out…",
     "noProviders": "No identity providers are configured.",
     "returningTitle": "Signing you in…",
     "returningSubtitle": "Completing authentication with {provider}…",
@@ -185,7 +186,13 @@
     "callbackRetry": "Try again",
     "backToLogin": "Back to login",
     "loginRequired": "You must sign in to access this page.",
-    "unknownProvider": "Unknown identity provider."
+    "unknownProvider": "Unknown identity provider.",
+    "userMenu": "Account menu",
+    "signedInAs": "Signed in as",
+    "role": "Role",
+    "provider": "Provider",
+    "roleViewer": "Viewer",
+    "roleAdmin": "Administrator"
   },
   "policies": {
     "title": "ODRL Policies",
