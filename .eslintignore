@@ -1,3 +1,7 @@
 dist
 node_modules
 src/api/generated
+# Runtime-rendered auth configuration files live in /public and are not
+# valid JavaScript until processed by the nginx entrypoint (envsubst).
+public/config.template.js
+public/config.js

@@ -282,6 +282,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useTilStore } from '@/stores/til'
+import { useAuth } from '@/composables/useAuth'
 import type { TrustedIssuer, Credentials, Claim } from '@/api/generated/til'
 
 /** Timeout in milliseconds for the success snackbar. */
@@ -292,6 +293,9 @@ const { t } = useI18n()
 const router = useRouter()
 const store = useTilStore()
 const formRef = ref<{ validate: () => Promise<{ valid: boolean }> } | null>(null)
+
+/** Role-based capability flags for the current user. */
+const { canEdit } = useAuth()
 
 /** Whether the form is in edit mode (has a DID prop). */
 const isEditMode = computed(() => !!props.did)
@@ -486,6 +490,13 @@ async function handleSubmit(): Promise<void> {
 }
 
 onMounted(async () => {
+  // Defensive redirect: the router guard normally blocks viewers from
+  // reaching the form routes, but fall back to the list view in case the
+  // guard was bypassed (e.g. stale session, manual route registration).
+  if (!canEdit.value) {
+    router.replace({ name: 'til-list' })
+    return
+  }
   if (isEditMode.value && props.did) {
     await store.fetchIssuerDetail(props.did)
     if (store.selectedIssuer) {

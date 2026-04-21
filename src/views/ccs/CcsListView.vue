@@ -6,6 +6,7 @@
       </h1>
       <v-spacer />
       <v-btn
+        v-if="canEdit"
         color="primary"
         prepend-icon="mdi-plus"
         :to="{ name: 'ccs-create' }"
@@ -111,11 +112,15 @@ import { onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useCcsStore } from '@/stores/ccs'
+import { useAuth } from '@/composables/useAuth'
 import type { Service } from '@/api/generated/ccs'
 
 const { t } = useI18n()
 const router = useRouter()
 const store = useCcsStore()
+
+/** Role-based capability flags for the current user. */
+const { canEdit } = useAuth()
 
 /** Column definitions for the services data table. */
 const headers = computed(() => [
