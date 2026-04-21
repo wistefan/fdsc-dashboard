@@ -309,6 +309,113 @@ docker run -p 8080:80 fdsc-dashboard
 
 The image uses a multi-stage build (Node 20 for building, nginx for serving).
 
+## Authentication (OAuth2 / OpenID Connect)
+
+The dashboard supports optional OAuth2 / OpenID Connect authentication:
+
+- **Default:** no OAuth2 providers are configured. The dashboard runs exactly as before — no sign-in screen, no router guards, no user menu.
+- **Configured:** one or more providers are declared via a JSON configuration. All users must sign in before using the dashboard and every action is gated by their resolved role.
+
+Two canonical roles are recognised:
+
+| Role     | Capabilities                                          |
+|----------|-------------------------------------------------------|
+| `viewer` | Read-only access to every endpoint.                   |
+| `admin`  | Full access, including create / update / delete.      |
+
+### Runtime configuration with `AUTH_CONFIG_JSON`
+
+In production the Docker image reads a single environment variable,
+`AUTH_CONFIG_JSON`, at container start. The value must be a JSON string
+that matches the `AuthConfig` shape declared in `src/auth/types.ts`:
+
+```json
+{
+  "providers": [
+    {
+      "id": "keycloak",
+      "displayName": "Keycloak",
+      "issuer": "https://keycloak.example.com/realms/fdsc",
+      "clientId": "fdsc-dashboard",
+      "scopes": ["openid", "profile"],
+      "rolesClaimPath": "realm_access.roles",
+      "roleMapping": {
+        "fdsc-admin": "admin",
+        "fdsc-viewer": "viewer"
+      },
+      "silentRenew": true
+    }
+  ]
+}
+```
+
+| Field            | Required | Description                                                                                             |
+|------------------|----------|---------------------------------------------------------------------------------------------------------|
+| `id`             | yes      | URL-safe identifier (used in callback URLs and storage keys).                                           |
+| `displayName`    | yes      | Human-readable label shown in the login picker.                                                         |
+| `issuer`         | yes      | OIDC issuer URL (discovery document is fetched from `<issuer>/.well-known/openid-configuration`).       |
+| `clientId`       | yes      | OAuth2 client ID registered with the identity provider.                                                 |
+| `scopes`         | no       | Space of scopes to request. Defaults to `["openid", "profile"]` when omitted.                           |
+| `rolesClaimPath` | no       | Dotted path to the role list inside the ID/access-token claims. Defaults to `realm_access.roles`.       |
+| `roleMapping`    | no       | Map of provider-specific role names to the canonical `viewer` / `admin` roles. Unmapped → `viewer`.     |
+| `silentRenew`    | no       | Enable OIDC silent token renewal via a hidden iframe. Defaults to `false`.                              |
+
+Launch an image with authentication enabled:
+
+```bash
+docker run -p 8080:80 \
+  -e AUTH_CONFIG_JSON='{"providers":[{"id":"keycloak","displayName":"Keycloak","issuer":"https://keycloak.example.com/realms/fdsc","clientId":"fdsc-dashboard","roleMapping":{"fdsc-admin":"admin","fdsc-viewer":"viewer"}}]}' \
+  fdsc-dashboard
+```
+
+If `AUTH_CONFIG_JSON` is **unset or empty**, the entrypoint falls back to
+`{"providers":[]}` and the dashboard runs unauthenticated.
+
+#### How it works
+
+1. `public/config.template.js` contains the line
+   `window.__AUTH_CONFIG__ = ${AUTH_CONFIG_JSON};`.
+2. The image's nginx entrypoint runs
+   `scripts/docker-entrypoint.d/10-render-config.sh`, which uses
+   `envsubst` to substitute `AUTH_CONFIG_JSON` and writes the result to
+   `/usr/share/nginx/html/config.js`. The unsubstituted template is then
+   deleted so it is never served.
+3. `index.html` loads `/config.js` **before** the application bundle, so
+   `window.__AUTH_CONFIG__` is populated by the time
+   `src/auth/config.ts#loadAuthConfig()` reads it.
+
+Because the substitution happens at container start, operators can enable,
+disable, or re-configure OAuth2 without rebuilding the image — just supply
+a different value for `AUTH_CONFIG_JSON` (for example via Kubernetes
+`env` / `envFrom`, Docker Compose, or `docker run -e`).
+
+### Build-time fallback for local development
+
+For local `npm run dev` there is no nginx, so the runtime templating step
+does not run. Contributors can instead set the Vite environment variable
+`VITE_AUTH_PROVIDERS` to the same JSON payload:
+
+```bash
+VITE_AUTH_PROVIDERS='{"providers":[{"id":"keycloak", ... }]}' npm run dev
+```
+
+The loader uses `window.__AUTH_CONFIG__` when present, otherwise falls back
+to `VITE_AUTH_PROVIDERS`, otherwise disables auth.
+
+### Example: Keycloak realm configuration
+
+1. Create a realm (e.g. `fdsc`).
+2. Add a public client `fdsc-dashboard` with:
+   - **Client authentication:** off (the dashboard is a SPA; it uses PKCE).
+   - **Valid redirect URIs:** `https://dashboard.example.com/callback/keycloak`
+     (and `http://localhost:3000/callback/keycloak` for local dev).
+   - **Valid post logout redirect URIs:** `https://dashboard.example.com/login`.
+   - **Web origins:** `https://dashboard.example.com` (and `http://localhost:3000`).
+3. Create two realm roles: `fdsc-admin` and `fdsc-viewer`.
+4. Assign the appropriate role to each user or group.
+5. Set `AUTH_CONFIG_JSON` to a JSON document pointing at the realm, as in
+   the sample above.
+
 ## Project Structure
 
 ```
