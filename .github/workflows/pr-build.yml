@@ -10,6 +10,8 @@ on:
       - opened
       - reopened
       - synchronize
+      - edited
+      - labeled
 
 permissions:
   contents: read
