@@ -43,7 +43,7 @@
       </h1>
       <v-spacer />
       <v-btn
-        v-if="store.selectedPolicy"
+        v-if="store.selectedPolicy && canEdit"
         color="primary"
         variant="tonal"
         class="mr-2"
@@ -53,7 +53,7 @@
         {{ t('common.edit') }}
       </v-btn>
       <v-btn
-        v-if="store.selectedPolicy"
+        v-if="store.selectedPolicy && canDelete"
         color="error"
         variant="tonal"
         prepend-icon="mdi-delete"
@@ -292,6 +292,7 @@ import { onMounted, computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { usePoliciesStore } from '@/stores/policies'
+import { useAuth } from '@/composables/useAuth'
 
 /** Timeout in milliseconds for snackbar messages. */
 const SNACKBAR_TIMEOUT = 3000
@@ -303,6 +304,9 @@ const props = defineProps<{ id: string; serviceId?: string }>()
 const { t } = useI18n()
 const router = useRouter()
 const store = usePoliciesStore()
+
+/** Role-based capability flags for the current user. */
+const { canEdit, canDelete } = useAuth()
 
 /** Whether this detail view is for a service-scoped policy. */
 const isServicePolicy = computed(() => !!props.serviceId)

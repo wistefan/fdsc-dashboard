@@ -32,7 +32,7 @@
       </h1>
       <v-spacer />
       <v-btn
-        v-if="store.selectedService"
+        v-if="store.selectedService && canEdit"
         color="primary"
         variant="tonal"
         class="mr-2"
@@ -42,7 +42,7 @@
         {{ t('common.edit') }}
       </v-btn>
       <v-btn
-        v-if="store.selectedService"
+        v-if="store.selectedService && canDelete"
         color="error"
         variant="tonal"
         prepend-icon="mdi-delete"
@@ -458,6 +458,7 @@ import { onMounted, computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useCcsStore } from '@/stores/ccs'
+import { useAuth } from '@/composables/useAuth'
 
 /** Timeout in milliseconds for snackbar messages. */
 const SNACKBAR_TIMEOUT = 3000
@@ -466,6 +467,9 @@ const props = defineProps<{ id: string }>()
 const { t } = useI18n()
 const router = useRouter()
 const store = useCcsStore()
+
+/** Role-based capability flags for the current user. */
+const { canEdit, canDelete } = useAuth()
 
 /** Whether the delete confirmation dialog is visible. */
 const showDeleteDialog = ref(false)

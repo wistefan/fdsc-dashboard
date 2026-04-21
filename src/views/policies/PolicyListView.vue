@@ -22,6 +22,7 @@
       </h1>
       <v-spacer />
       <v-btn
+        v-if="canEdit"
         color="primary"
         prepend-icon="mdi-plus"
         :to="{ name: 'policy-create' }"
@@ -149,7 +150,10 @@
       <!-- By-service tab -->
       <v-window-item :value="TAB_BY_SERVICE">
         <!-- Create service form -->
-        <v-card class="mb-4">
+        <v-card
+          v-if="canEdit"
+          class="mb-4"
+        >
           <v-card-text>
             <div class="d-flex align-center ga-3">
               <v-text-field
@@ -217,6 +221,7 @@
               {{ service.id }}
               <v-spacer />
               <v-btn
+                v-if="canEdit"
                 color="primary"
                 variant="tonal"
                 size="small"
@@ -227,6 +232,7 @@
                 {{ t('policies.createTitle') }}
               </v-btn>
               <v-btn
+                v-if="canDelete"
                 color="error"
                 variant="tonal"
                 size="small"
@@ -373,6 +379,7 @@ import { onMounted, computed, ref, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { usePoliciesStore } from '@/stores/policies'
+import { useAuth } from '@/composables/useAuth'
 import type { Policy } from '@/api/generated/odrl'
 
 /** Fallback value when the ODRL type cannot be determined. */
@@ -393,6 +400,9 @@ const SNACKBAR_TIMEOUT = 3000
 const { t } = useI18n()
 const router = useRouter()
 const store = usePoliciesStore()
+
+/** Role-based capability flags for the current user. */
+const { canEdit, canDelete } = useAuth()
 
 /** Currently active tab. */
 const activeTab = ref(TAB_GLOBAL)

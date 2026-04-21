@@ -1,42 +1,105 @@
+/*
+ * Copyright 2026 Seamless Middleware Technologies S.L and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 /**
  * Unit tests for the `useAuth` composable.
  *
- * Covers:
- *   - `setToken` persistence behaviour in `localStorage`
- *   - `clearToken` equivalence to `setToken('')`
- *   - whitespace trimming
- *   - the reactive `isAuthenticated` computed
- *   - `initAuth` resolution order (localStorage → env → empty)
- *   - the synchronous `getAuthTokenSync` accessor
- *
- * The composable holds its token in module-level state, so each test re-imports
- * the module via `vi.resetModules()` + a dynamic `import()` to get a fresh
- * reactive ref and to pick up any freshly stubbed env variables.
+ * The composable exposes two complementary APIs:
+ *  - Token-based: `token`, `setToken`, `clearToken`, `initAuth`,
+ *    `getAuthTokenSync`, plus token-backed `isAuthenticated`.
+ *  - Role-based: `isAdmin`, `isViewer`, `canEdit`, `canDelete`,
+ *    `isAuthEnabled`, backed by the OAuth2 auth Pinia store.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+
+import {
+  ROLE_ADMIN,
+  ROLE_VIEWER,
+  RUNTIME_CONFIG_GLOBAL,
+} from '@/auth/constants'
 
 /** localStorage key used by the composable to persist the JWT. */
 const STORAGE_KEY = 'fdsc-dashboard-auth-token'
 
+vi.mock('@/auth/oidcClient', () => ({
+  signinRedirect: vi.fn(),
+  signinRedirectCallback: vi.fn(),
+  signoutRedirect: vi.fn(),
+  getUser: vi.fn(),
+  removeUser: vi.fn(),
+}))
+
+/** A syntactically complete provider with no optional fields. */
+const KEYCLOAK_PROVIDER_RAW = {
+  id: 'keycloak',
+  displayName: 'Keycloak',
+  issuer: 'https://id.example.com/realms/main',
+  clientId: 'fdsc-dashboard',
+}
+
+/** Assign (or unassign) the runtime auth-config global. */
+function setRuntimeProviders(providers: unknown[] | null): void {
+  if (providers === null) {
+    delete (window as unknown as Record<string, unknown>)[RUNTIME_CONFIG_GLOBAL]
+  } else {
+    ;(window as unknown as Record<string, unknown>)[RUNTIME_CONFIG_GLOBAL] = {
+      providers,
+    }
+  }
+}
+
 /**
  * Helper: load a fresh copy of the `useAuth` module. Required because the
  * composable stores its token in module-scoped state and we want every test to
- * start from an empty token.
+ * start from an empty token. Installs a fresh Pinia so role-based flags work.
  */
 async function loadFreshModule() {
   vi.resetModules()
+  setActivePinia(createPinia())
   return await import('@/composables/useAuth')
 }
 
-describe('useAuth', () => {
+/** Re-import both the auth store and the composable under a fresh registry. */
+async function freshComposable(): Promise<{
+  useAuth: typeof import('@/composables/useAuth').useAuth
+  useAuthStore: typeof import('@/stores/auth').useAuthStore
+}> {
+  vi.resetModules()
+  setActivePinia(createPinia())
+  const storeMod = await import('@/stores/auth')
+  const composableMod = await import('@/composables/useAuth')
+  return {
+    useAuth: composableMod.useAuth,
+    useAuthStore: storeMod.useAuthStore,
+  }
+}
+
+describe('useAuth — token-based API', () => {
   beforeEach(() => {
     localStorage.clear()
     vi.unstubAllEnvs()
+    setActivePinia(createPinia())
+    setRuntimeProviders(null)
   })
 
   afterEach(() => {
     localStorage.clear()
     vi.unstubAllEnvs()
+    setRuntimeProviders(null)
   })
 
   describe('setToken', () => {
@@ -99,7 +162,7 @@ describe('useAuth', () => {
     })
   })
 
-  describe('isAuthenticated', () => {
+  describe('isAuthenticated (token-backed when auth is disabled)', () => {
     it.each([
       ['empty token', '', false],
       ['non-empty token', 'jwt', true],
@@ -189,7 +252,6 @@ describe('useAuth', () => {
       const result = getAuthTokenSync()
       expect(result).toBe('abc.def')
       expect(typeof result).toBe('string')
-      // Guard: it really must not be a promise.
       expect((result as unknown as { then?: unknown }).then).toBeUndefined()
     })
 
@@ -220,6 +282,134 @@ describe('useAuth', () => {
 
       expect(mod.AUTH_TOKEN_STORAGE_KEY).toBe(STORAGE_KEY)
       expect(mod.AUTH_TOKEN_ENV_KEY).toBe('VITE_AUTH_TOKEN')
+    })
+  })
+})
+
+describe('useAuth — role-based API', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    setRuntimeProviders(null)
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+    setRuntimeProviders(null)
+  })
+
+  describe('auth disabled (no providers configured)', () => {
+    beforeEach(() => {
+      setRuntimeProviders([])
+    })
+
+    it('reports every role capability flag as true', async () => {
+      const { useAuth } = await freshComposable()
+      const auth = useAuth()
+      expect(auth.isAdmin.value).toBe(true)
+      expect(auth.isViewer.value).toBe(true)
+      expect(auth.canEdit.value).toBe(true)
+      expect(auth.canDelete.value).toBe(true)
+      expect(auth.isAuthEnabled.value).toBe(false)
+    })
+  })
+
+  describe('auth enabled + viewer signed in', () => {
+    beforeEach(() => {
+      setRuntimeProviders([KEYCLOAK_PROVIDER_RAW])
+    })
+
+    it('grants viewer privileges but denies edit/delete', async () => {
+      const { useAuth, useAuthStore } = await freshComposable()
+      const store = useAuthStore()
+      store.user = {
+        subject: 'bob',
+        name: 'Bob',
+        role: ROLE_VIEWER,
+        providerId: 'keycloak',
+      }
+      store.activeProviderId = 'keycloak'
+      const auth = useAuth()
+      expect(auth.isAuthEnabled.value).toBe(true)
+      expect(auth.isAuthenticated.value).toBe(true)
+      expect(auth.isViewer.value).toBe(true)
+      expect(auth.isAdmin.value).toBe(false)
+      expect(auth.canEdit.value).toBe(false)
+      expect(auth.canDelete.value).toBe(false)
+    })
+  })
+
+  describe('auth enabled + admin signed in', () => {
+    beforeEach(() => {
+      setRuntimeProviders([KEYCLOAK_PROVIDER_RAW])
+    })
+
+    it('grants every capability flag', async () => {
+      const { useAuth, useAuthStore } = await freshComposable()
+      const store = useAuthStore()
+      store.user = {
+        subject: 'alice',
+        name: 'Alice',
+        role: ROLE_ADMIN,
+        providerId: 'keycloak',
+      }
+      store.activeProviderId = 'keycloak'
+      const auth = useAuth()
+      expect(auth.isAuthEnabled.value).toBe(true)
+      expect(auth.isAuthenticated.value).toBe(true)
+      expect(auth.isAdmin.value).toBe(true)
+      expect(auth.isViewer.value).toBe(true)
+      expect(auth.canEdit.value).toBe(true)
+      expect(auth.canDelete.value).toBe(true)
+    })
+  })
+
+  describe('auth enabled + no user signed in', () => {
+    beforeEach(() => {
+      setRuntimeProviders([KEYCLOAK_PROVIDER_RAW])
+    })
+
+    it('denies every capability flag', async () => {
+      const { useAuth } = await freshComposable()
+      const auth = useAuth()
+      expect(auth.isAuthEnabled.value).toBe(true)
+      expect(auth.isAuthenticated.value).toBe(false)
+      expect(auth.isAdmin.value).toBe(false)
+      expect(auth.isViewer.value).toBe(false)
+      expect(auth.canEdit.value).toBe(false)
+      expect(auth.canDelete.value).toBe(false)
+    })
+  })
+
+  describe('reactivity', () => {
+    beforeEach(() => {
+      setRuntimeProviders([KEYCLOAK_PROVIDER_RAW])
+    })
+
+    it('tracks subsequent role changes on the store', async () => {
+      const { useAuth, useAuthStore } = await freshComposable()
+      const store = useAuthStore()
+      const auth = useAuth()
+
+      expect(auth.canEdit.value).toBe(false)
+
+      store.user = {
+        subject: 'carol',
+        name: 'Carol',
+        role: ROLE_ADMIN,
+        providerId: 'keycloak',
+      }
+      store.activeProviderId = 'keycloak'
+      expect(auth.canEdit.value).toBe(true)
+
+      store.user = {
+        subject: 'carol',
+        name: 'Carol',
+        role: ROLE_VIEWER,
+        providerId: 'keycloak',
+      }
+      expect(auth.canEdit.value).toBe(false)
     })
   })
 })

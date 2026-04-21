@@ -326,6 +326,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { usePoliciesStore } from '@/stores/policies'
+import { useAuth } from '@/composables/useAuth'
 import type { OdrlPolicyJson } from '@/api/generated/odrl'
 
 /** Timeout in milliseconds for the success snackbar. */
@@ -342,6 +343,9 @@ const { t } = useI18n()
 const router = useRouter()
 const store = usePoliciesStore()
 const formRef = ref<{ validate: () => Promise<{ valid: boolean }> } | null>(null)
+
+/** Role-based capability flags for the current user. */
+const { canEdit } = useAuth()
 
 /** Whether the form is in edit mode (has an id prop). */
 const isEditMode = computed(() => !!props.id)
@@ -608,6 +612,13 @@ async function handleSubmit(): Promise<void> {
 }
 
 onMounted(async () => {
+  // Defensive redirect: the router guard normally blocks viewers from
+  // reaching the form routes, but fall back to the list view in case the
+  // guard was bypassed (e.g. stale session, manual route registration).
+  if (!canEdit.value) {
+    router.replace({ name: 'policies-list' })
+    return
+  }
   if (isEditMode.value && props.id) {
     if (isServicePolicy.value) {
       await store.fetchServicePolicyDetail(props.serviceId!, props.id)
