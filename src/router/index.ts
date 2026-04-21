@@ -1,6 +1,34 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import type { RouteRecordRaw } from 'vue-router'
+import {
+  createRouter,
+  createWebHistory,
+  type NavigationGuardNext,
+  type RouteLocationNormalized,
+  type RouteRecordRaw,
+} from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
+import {
+  CALLBACK_ROUTE_TEMPLATE,
+  LOGIN_ROUTE_PATH,
+  RETURN_TO_STORAGE_KEY,
+} from '@/auth/constants'
+import { useAuthStore } from '@/stores/auth'
+
+/** Route name of the provider-picker login view. */
+const LOGIN_ROUTE_NAME = 'login'
+
+/** Route name of the OAuth2 callback view. */
+const CALLBACK_ROUTE_NAME = 'callback'
+
+/**
+ * Route names exempt from the authentication guard.
+ *
+ * The login and callback views must be reachable even when the user is
+ * not authenticated, otherwise the guard would create a redirect loop.
+ */
+const PUBLIC_ROUTE_NAMES: ReadonlySet<string> = new Set([
+  LOGIN_ROUTE_NAME,
+  CALLBACK_ROUTE_NAME,
+])
 
 /** Application route definitions. */
 const routes: RouteRecordRaw[] = [
@@ -8,6 +36,19 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     name: 'home',
     component: HomeView,
+  },
+  {
+    path: LOGIN_ROUTE_PATH,
+    name: LOGIN_ROUTE_NAME,
+    component: () => import('@/views/auth/LoginView.vue'),
+    meta: { public: true },
+  },
+  {
+    path: CALLBACK_ROUTE_TEMPLATE,
+    name: CALLBACK_ROUTE_NAME,
+    component: () => import('@/views/auth/CallbackView.vue'),
+    props: true,
+    meta: { public: true },
   },
   {
     path: '/til',
@@ -99,5 +140,77 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
+
+/**
+ * Persist the target route so the callback view can redirect the user
+ * back to where they were trying to go after authentication completes.
+ *
+ * Public routes (login / callback) and already-satisfied targets are
+ * ignored to avoid overwriting a previously stored value with `/login`.
+ *
+ * @param target - the route the user was attempting to reach.
+ */
+function preserveReturnTo(target: RouteLocationNormalized): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+  if (typeof target.name === 'string' && PUBLIC_ROUTE_NAMES.has(target.name)) {
+    return
+  }
+  window.sessionStorage.setItem(RETURN_TO_STORAGE_KEY, target.fullPath)
+}
+
+/**
+ * Determine whether a route is exempt from the authentication guard.
+ *
+ * @param target - the route being evaluated.
+ * @returns `true` when the route may be entered without authentication.
+ */
+function isPublicRoute(target: RouteLocationNormalized): boolean {
+  if (target.meta?.public === true) {
+    return true
+  }
+  return typeof target.name === 'string' && PUBLIC_ROUTE_NAMES.has(target.name)
+}
+
+/**
+ * Router-level authentication guard.
+ *
+ * When auth is *disabled* the guard is a no-op — this preserves the
+ * legacy "no providers configured" behaviour exactly.
+ *
+ * When auth is *enabled*:
+ * - Public routes (`/login`, `/callback/:providerId`) are always allowed.
+ * - For any other route, an unauthenticated user is redirected to
+ *   `/login` with their originally requested path preserved in
+ *   `sessionStorage` so the callback view can restore it.
+ *
+ * @param to - the target route.
+ * @param _from - the source route (unused).
+ * @param next - the navigation callback.
+ */
+export function authGuard(
+  to: RouteLocationNormalized,
+  _from: RouteLocationNormalized,
+  next: NavigationGuardNext,
+): void {
+  const auth = useAuthStore()
+  if (!auth.isAuthEnabled) {
+    next()
+    return
+  }
+  if (isPublicRoute(to)) {
+    next()
+    return
+  }
+  if (auth.isAuthenticated) {
+    next()
+    return
+  }
+  preserveReturnTo(to)
+  next({ name: LOGIN_ROUTE_NAME })
+}
+
+router.beforeEach(authGuard)
 
 export default router
