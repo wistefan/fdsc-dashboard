@@ -27,7 +27,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          rm -rf package-lock.json
+          npm install
+          npm ci
 
       - name: Generate API clients
         # The OpenAPI-derived clients are generated at build-time; `npm run build`
