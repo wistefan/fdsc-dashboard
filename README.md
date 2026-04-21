@@ -77,13 +77,70 @@ docker compose down
 
 ## Available Scripts
 
-| Command           | Description                                   |
-|-------------------|-----------------------------------------------|
-| `npm run dev`     | Start the Vite dev server with HMR            |
-| `npm run build`   | Type-check and build for production           |
-| `npm run preview` | Preview the production build locally          |
-| `npm run lint`    | Lint source files with ESLint (auto-fix)      |
-| `npm run format`  | Format source files with Prettier             |
+| Command                 | Description                                             |
+|-------------------------|---------------------------------------------------------|
+| `npm run dev`           | Start the Vite dev server with HMR                      |
+| `npm run build`         | Type-check and build for production                     |
+| `npm run preview`       | Preview the production build locally                    |
+| `npm run lint`          | Lint source files with ESLint (auto-fix)                |
+| `npm run format`        | Format source files with Prettier                       |
+| `npm run license:check` | Verify every in-scope source file has a license header  |
+| `npm run license:apply` | Prepend the Apache 2.0 license header to any file that is missing it |
+
+## License headers
+
+Every in-scope source file must carry the Apache 2.0 copyright header defined in
+[`scripts/license-header.txt`](scripts/license-header.txt). Header verification and
+insertion are handled by the [`license-check-and-add`](https://www.npmjs.com/package/license-check-and-add)
+npm package, which is driven by [`license-check-and-add-config.json`](license-check-and-add-config.json)
+at the repo root.
+
+### Scripts
+
+- `npm run license:check` — verifies that every in-scope file starts with the
+  expected header. Fails (non-zero exit) and prints the offending file paths when a
+  file is missing the header. This is the command CI runs.
+- `npm run license:apply` — prepends the header to any in-scope file that is
+  missing it. The operation is idempotent: running it on an already-compliant tree
+  leaves every file byte-identical.
+
+### Scope
+
+The default config limits the tool to `.ts` and `.vue` files under `src/`. The
+following paths are intentionally excluded:
+
+- `src/api/generated/**` — regenerated from upstream OpenAPI specs; headers are
+  re-applied automatically by `scripts/generate-api-clients.sh` (see below).
+- `src/locales/**` — JSON files cannot contain comments.
+- `.github/**`, `mocks/**`, `public/**`, `scripts/**` and root-level config files
+  (`vite.config.ts`, `tsconfig*.json`, `Dockerfile`, etc.) — not considered
+  "source files" per the ticket scope.
+
+### CI enforcement
+
+The [`license-check`](.github/workflows/license-check.yml) GitHub Actions workflow
+runs `npm run license:check` on every push to `main` and every pull request, so a
+PR that introduces an unlicensed file will fail CI.
+
+### Adding a new source file
+
+Create the file as usual, then run:
+
+```bash
+npm run license:apply
+```
+
+…and commit the resulting change alongside your other modifications. Alternatively,
+paste the content of `scripts/license-header.txt` (wrapped in a `/* … */` block
+comment) at the top of the file manually.
+
+### Regenerated API clients
+
+When you run `npm run generate:api`, the script calls `license-check-and-add` a
+second time using [`license-check-and-add-generated-config.json`](license-check-and-add-generated-config.json),
+which is narrowed to `src/api/generated/**`. This keeps the generated output
+license-compliant without forcing the default `license:check` task to scan
+machine-written code.
 
 ## Building for Production
 

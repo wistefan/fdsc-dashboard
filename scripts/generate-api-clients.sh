@@ -65,4 +65,17 @@ if [ -f "${ODRL_INDEX}" ]; then
   awk '!seen[$0]++' "${ODRL_INDEX}" > "${ODRL_INDEX}.tmp" && mv "${ODRL_INDEX}.tmp" "${ODRL_INDEX}"
 fi
 
+# ---- Apply copyright headers to regenerated files -------------------------
+# The default license-check-and-add config excludes src/api/generated/** so
+# the regular `npm run license:check` does not fail on freshly generated
+# code.  However, we still want the header present on every generated file
+# once regeneration is complete.  license-check-and-add@4.x does not expose
+# a CLI flag to override the `ignore` list, so we use a second config file
+# (license-check-and-add-generated-config.json) whose ignore list skips
+# everything *except* src/api/generated/**.  This invocation is idempotent;
+# running it on an already-licensed tree is a no-op.
+echo "==> Applying copyright headers to generated API clients..."
+npx license-check-and-add add \
+  -f "${PROJECT_ROOT}/license-check-and-add-generated-config.json"
+
 echo "==> All API clients generated successfully."
