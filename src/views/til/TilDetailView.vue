@@ -26,9 +26,84 @@
       {{ t('common.back') }}
     </v-btn>
 
-    <h1 class="text-h4 mb-4">
-      {{ t('til.detailTitle') }}
-    </h1>
+    <div class="d-flex align-center mb-4">
+      <h1 class="text-h4">
+        {{ t('til.detailTitle') }}
+      </h1>
+      <v-spacer />
+      <v-btn
+        v-if="store.selectedIssuer && canEdit"
+        color="primary"
+        variant="tonal"
+        class="mr-2"
+        prepend-icon="mdi-pencil"
+        :to="{ name: 'til-edit', params: { did } }"
+      >
+        {{ t('common.edit') }}
+      </v-btn>
+      <v-btn
+        v-if="store.selectedIssuer && canDelete"
+        color="error"
+        variant="tonal"
+        prepend-icon="mdi-delete"
+        :loading="store.saving"
+        @click="showDeleteDialog = true"
+      >
+        {{ t('common.delete') }}
+      </v-btn>
+    </div>
+
+    <!-- Delete confirmation dialog -->
+    <v-dialog
+      v-model="showDeleteDialog"
+      max-width="500"
+    >
+      <v-card>
+        <v-card-title>{{ t('common.confirmDelete') }}</v-card-title>
+        <v-card-text>
+          {{ t('til.confirmDeleteIssuer') }}
+          <br>
+          <span class="text-medium-emphasis text-body-2">
+            {{ t('common.deleteWarning') }}
+          </span>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            variant="text"
+            @click="showDeleteDialog = false"
+          >
+            {{ t('common.cancel') }}
+          </v-btn>
+          <v-btn
+            color="error"
+            variant="flat"
+            :loading="store.saving"
+            @click="handleDelete"
+          >
+            {{ t('common.delete') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Success snackbar -->
+    <v-snackbar
+      v-model="showSuccess"
+      color="success"
+      :timeout="SNACKBAR_TIMEOUT"
+    >
+      {{ successMessage }}
+    </v-snackbar>
+
+    <!-- Error snackbar -->
+    <v-snackbar
+      v-model="showError"
+      color="error"
+      :timeout="SNACKBAR_TIMEOUT"
+    >
+      {{ errorMessage }}
+    </v-snackbar>
 
     <!-- Loading state -->
     <template v-if="store.detailLoading">
@@ -207,14 +282,51 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useTilStore } from '@/stores/til'
+import { useAuth } from '@/composables/useAuth'
 import type { TimeRange } from '@/api/generated/til'
+
+/** Timeout in milliseconds for snackbar messages. */
+const SNACKBAR_TIMEOUT = 3000
 
 const props = defineProps<{ did: string }>()
 const { t } = useI18n()
+const router = useRouter()
 const store = useTilStore()
+
+/** Role-based capability flags for the current user. */
+const { canEdit, canDelete } = useAuth()
+
+/** Whether the delete confirmation dialog is visible. */
+const showDeleteDialog = ref(false)
+/** Whether the success snackbar is visible. */
+const showSuccess = ref(false)
+/** Success message text. */
+const successMessage = ref('')
+/** Whether the error snackbar is visible. */
+const showError = ref(false)
+/** Error message text. */
+const errorMessage = ref('')
+
+/**
+ * Handle issuer deletion after confirmation.
+ * Calls the store delete action and navigates back on success.
+ */
+async function handleDelete(): Promise<void> {
+  const success = await store.deleteIssuer(props.did)
+  showDeleteDialog.value = false
+  if (success) {
+    successMessage.value = t('til.deleteSuccess')
+    showSuccess.value = true
+    router.push({ name: 'til-list' })
+  } else {
+    errorMessage.value = store.saveError ?? t('til.deleteError')
+    showError.value = true
+  }
+}
 
 /** Number of credentials configured for the selected issuer. */
 const credentialCount = computed(() => store.selectedIssuer?.credentials?.length ?? 0)

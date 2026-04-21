@@ -16,9 +16,20 @@
  */
 <template>
   <div>
-    <h1 class="text-h4 mb-4">
-      {{ t('til.listTitle') }}
-    </h1>
+    <div class="d-flex align-center mb-4">
+      <h1 class="text-h4">
+        {{ t('til.listTitle') }}
+      </h1>
+      <v-spacer />
+      <v-btn
+        v-if="canEdit"
+        color="primary"
+        prepend-icon="mdi-plus"
+        :to="{ name: 'til-create' }"
+      >
+        {{ t('til.createTitle') }}
+      </v-btn>
+    </div>
 
     <!-- Error alert -->
     <v-alert
@@ -52,31 +63,28 @@
         :page="store.currentPage + 1"
         item-value="did"
         hover
+        class="cursor-pointer"
         @update:page="onPageChange"
         @update:items-per-page="onPageSizeChange"
         @click:row="onRowClick"
       >
-        <!-- Custom row rendering -->
-        <template #item="{ item }">
-          <tr
-            class="cursor-pointer"
-            @click="navigateToDetail(item.did)"
+        <!-- DID column -->
+        <template #item.did="{ item }">
+          <span class="text-body-2 font-weight-medium">
+            {{ item.did }}
+          </span>
+        </template>
+
+        <!-- Actions column -->
+        <template #item.href="{ item }">
+          <v-chip
+            size="small"
+            variant="outlined"
+            color="primary"
+            @click.stop="navigateToDetail(item.did)"
           >
-            <td>
-              <span class="text-body-2 font-weight-medium">
-                {{ item.did }}
-              </span>
-            </td>
-            <td class="text-end">
-              <v-chip
-                size="small"
-                variant="outlined"
-                color="primary"
-              >
-                {{ t('common.details') }}
-              </v-chip>
-            </td>
-          </tr>
+            {{ t('common.details') }}
+          </v-chip>
         </template>
 
         <!-- Empty state -->
@@ -109,11 +117,15 @@ import { onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useTilStore } from '@/stores/til'
+import { useAuth } from '@/composables/useAuth'
 import type { IssuerEntry } from '@/api/generated/tir'
 
 const { t } = useI18n()
 const router = useRouter()
 const store = useTilStore()
+
+/** Role-based capability flags for the current user. */
+const { canEdit } = useAuth()
 
 /** Column definitions for the issuers data table. */
 const headers = computed(() => [

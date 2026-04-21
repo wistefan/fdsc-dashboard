@@ -10,6 +10,7 @@ A Vue 3 dashboard for managing FIWARE Data Space Connector (DSC) resources inclu
 - **Pinia** – state management
 - **Vue I18n** – internationalization (English by default)
 - **Vite** – build tooling and dev server
+- **Vitest** – unit testing framework
 
 ## Prerequisites
 
@@ -74,6 +75,52 @@ Stop the stack with:
 ```bash
 docker compose down
 ```
+
+## Running Tests
+
+The project uses [Vitest](https://vitest.dev/) as its test framework with `jsdom` for DOM emulation and `@vue/test-utils` for Vue component testing.
+
+### Run all tests once
+
+```bash
+npm run test
+```
+
+This executes all `*.spec.ts` files under `src/` in a single run and exits.
+
+### Run tests in watch mode
+
+```bash
+npm run test:watch
+```
+
+Vitest will re-run affected tests automatically whenever source or test files change. This is the recommended mode during development.
+
+### Run a specific test file
+
+```bash
+npx vitest run src/stores/__tests__/til.spec.ts
+```
+
+### Run tests matching a name pattern
+
+```bash
+npx vitest run -t "should fetch issuers"
+```
+
+### Test file locations
+
+Test files are co-located with the source code they cover:
+
+| Store   | Test File                                |
+|---------|------------------------------------------|
+| TIL     | `src/stores/__tests__/til.spec.ts`       |
+| CCS     | `src/stores/__tests__/ccs.spec.ts`       |
+| Policies| `src/stores/__tests__/policies.spec.ts`  |
+
+### Configuration
+
+The Vitest configuration is defined in `vitest.config.ts` at the project root. It uses the `jsdom` test environment, enables global test APIs (`describe`, `it`, `expect`), and resolves the `@/` path alias to `src/`.
 
 ## Available Scripts
 
@@ -141,6 +188,73 @@ second time using [`license-check-and-add-generated-config.json`](license-check-
 which is narrowed to `src/api/generated/**`. This keeps the generated output
 license-compliant without forcing the default `license:check` task to scan
 machine-written code.
+| Command              | Description                                   |
+|----------------------|-----------------------------------------------|
+| `npm run dev`        | Start the Vite dev server with HMR            |
+| `npm run build`      | Type-check and build for production           |
+| `npm run preview`    | Preview the production build locally          |
+| `npm run test`       | Run all unit tests once                       |
+| `npm run test:watch` | Run unit tests in watch mode                  |
+| `npm run lint`       | Lint source files with ESLint (auto-fix)      |
+| `npm run format`     | Format source files with Prettier             |
+
+## Linting & Code Formatting
+
+The project uses [ESLint](https://eslint.org/) for static analysis and [Prettier](https://prettier.io/) for code formatting.
+
+### Run the linter
+
+```bash
+npm run lint
+```
+
+This runs ESLint across all `.vue`, `.js`, `.jsx`, `.cjs`, `.mjs`, `.ts`, `.tsx`, `.cts`, and `.mts` files with the `--fix` flag, which automatically corrects fixable issues (e.g. missing semicolons, import order). Non-fixable issues are reported in the terminal output.
+
+### Run the linter without auto-fix
+
+To check for issues without modifying files:
+
+```bash
+npx eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts
+```
+
+### Lint a specific file or directory
+
+```bash
+npx eslint src/views/til/TilListView.vue --fix
+npx eslint src/stores/ --fix
+```
+
+### Format code with Prettier
+
+```bash
+npm run format
+```
+
+This formats all files under `src/` using Prettier.
+
+### ESLint configuration
+
+The ESLint configuration lives in `.eslintrc.cjs` and extends:
+
+| Preset                                  | Purpose                                  |
+|-----------------------------------------|------------------------------------------|
+| `plugin:vue/vue3-recommended`           | Vue 3 recommended rules                  |
+| `eslint:recommended`                    | ESLint core recommended rules            |
+| `plugin:@typescript-eslint/recommended` | TypeScript-specific recommended rules    |
+
+Notable rule overrides:
+
+- `vue/multi-word-component-names` is **off** — single-word component names are allowed.
+- `vue/valid-v-slot` allows modifiers (e.g. `v-slot:item.actions`).
+- Test files (`*.spec.ts`, `src/test-setup.ts`) have relaxed rules: `@typescript-eslint/no-explicit-any` and `@typescript-eslint/no-unused-vars` are disabled.
+
+### Integrating with your editor
+
+Most editors support ESLint integration:
+
+- **VS Code**: Install the [ESLint extension](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint). Enable "Format on Save" and set ESLint as the default formatter for `.vue` and `.ts` files.
+- **WebStorm / IntelliJ**: ESLint support is built in. Go to *Settings → Languages & Frameworks → JavaScript → Code Quality Tools → ESLint* and select "Automatic ESLint configuration".
 
 ## Building for Production
 
@@ -165,6 +279,113 @@ docker run -p 8080:80 fdsc-dashboard
 
 The image uses a multi-stage build (Node 20 for building, nginx for serving).
 
+## Authentication (OAuth2 / OpenID Connect)
+
+The dashboard supports optional OAuth2 / OpenID Connect authentication:
+
+- **Default:** no OAuth2 providers are configured. The dashboard runs exactly as before — no sign-in screen, no router guards, no user menu.
+- **Configured:** one or more providers are declared via a JSON configuration. All users must sign in before using the dashboard and every action is gated by their resolved role.
+
+Two canonical roles are recognised:
+
+| Role     | Capabilities                                          |
+|----------|-------------------------------------------------------|
+| `viewer` | Read-only access to every endpoint.                   |
+| `admin`  | Full access, including create / update / delete.      |
+
+### Runtime configuration with `AUTH_CONFIG_JSON`
+
+In production the Docker image reads a single environment variable,
+`AUTH_CONFIG_JSON`, at container start. The value must be a JSON string
+that matches the `AuthConfig` shape declared in `src/auth/types.ts`:
+
+```json
+{
+  "providers": [
+    {
+      "id": "keycloak",
+      "displayName": "Keycloak",
+      "issuer": "https://keycloak.example.com/realms/fdsc",
+      "clientId": "fdsc-dashboard",
+      "scopes": ["openid", "profile"],
+      "rolesClaimPath": "realm_access.roles",
+      "roleMapping": {
+        "fdsc-admin": "admin",
+        "fdsc-viewer": "viewer"
+      },
+      "silentRenew": true
+    }
+  ]
+}
+```
+
+| Field            | Required | Description                                                                                             |
+|------------------|----------|---------------------------------------------------------------------------------------------------------|
+| `id`             | yes      | URL-safe identifier (used in callback URLs and storage keys).                                           |
+| `displayName`    | yes      | Human-readable label shown in the login picker.                                                         |
+| `issuer`         | yes      | OIDC issuer URL (discovery document is fetched from `<issuer>/.well-known/openid-configuration`).       |
+| `clientId`       | yes      | OAuth2 client ID registered with the identity provider.                                                 |
+| `scopes`         | no       | Space of scopes to request. Defaults to `["openid", "profile"]` when omitted.                           |
+| `rolesClaimPath` | no       | Dotted path to the role list inside the ID/access-token claims. Defaults to `realm_access.roles`.       |
+| `roleMapping`    | no       | Map of provider-specific role names to the canonical `viewer` / `admin` roles. Unmapped → `viewer`.     |
+| `silentRenew`    | no       | Enable OIDC silent token renewal via a hidden iframe. Defaults to `false`.                              |
+
+Launch an image with authentication enabled:
+
+```bash
+docker run -p 8080:80 \
+  -e AUTH_CONFIG_JSON='{"providers":[{"id":"keycloak","displayName":"Keycloak","issuer":"https://keycloak.example.com/realms/fdsc","clientId":"fdsc-dashboard","roleMapping":{"fdsc-admin":"admin","fdsc-viewer":"viewer"}}]}' \
+  fdsc-dashboard
+```
+
+If `AUTH_CONFIG_JSON` is **unset or empty**, the entrypoint falls back to
+`{"providers":[]}` and the dashboard runs unauthenticated.
+
+#### How it works
+
+1. `public/config.template.js` contains the line
+   `window.__AUTH_CONFIG__ = ${AUTH_CONFIG_JSON};`.
+2. The image's nginx entrypoint runs
+   `scripts/docker-entrypoint.d/10-render-config.sh`, which uses
+   `envsubst` to substitute `AUTH_CONFIG_JSON` and writes the result to
+   `/usr/share/nginx/html/config.js`. The unsubstituted template is then
+   deleted so it is never served.
+3. `index.html` loads `/config.js` **before** the application bundle, so
+   `window.__AUTH_CONFIG__` is populated by the time
+   `src/auth/config.ts#loadAuthConfig()` reads it.
+
+Because the substitution happens at container start, operators can enable,
+disable, or re-configure OAuth2 without rebuilding the image — just supply
+a different value for `AUTH_CONFIG_JSON` (for example via Kubernetes
+`env` / `envFrom`, Docker Compose, or `docker run -e`).
+
+### Build-time fallback for local development
+
+For local `npm run dev` there is no nginx, so the runtime templating step
+does not run. Contributors can instead set the Vite environment variable
+`VITE_AUTH_PROVIDERS` to the same JSON payload:
+
+```bash
+VITE_AUTH_PROVIDERS='{"providers":[{"id":"keycloak", ... }]}' npm run dev
+```
+
+The loader uses `window.__AUTH_CONFIG__` when present, otherwise falls back
+to `VITE_AUTH_PROVIDERS`, otherwise disables auth.
+
+### Example: Keycloak realm configuration
+
+1. Create a realm (e.g. `fdsc`).
+2. Add a public client `fdsc-dashboard` with:
+   - **Client authentication:** off (the dashboard is a SPA; it uses PKCE).
+   - **Valid redirect URIs:** `https://dashboard.example.com/callback/keycloak`
+     (and `http://localhost:3000/callback/keycloak` for local dev).
+   - **Valid post logout redirect URIs:** `https://dashboard.example.com/login`.
+   - **Web origins:** `https://dashboard.example.com` (and `http://localhost:3000`).
+3. Create two realm roles: `fdsc-admin` and `fdsc-viewer`.
+4. Assign the appropriate role to each user or group.
+5. Set `AUTH_CONFIG_JSON` to a JSON document pointing at the realm, as in
+   the sample above.
+
 ## Project Structure
 
 ```
@@ -173,6 +394,7 @@ src/
   main.ts              # Application entry point
   router/index.ts      # Route definitions
   stores/index.ts      # Pinia store setup
+    __tests__/           # Unit tests for stores
   plugins/
     vuetify.ts         # Vuetify configuration and theming
     i18n.ts            # Vue I18n setup
@@ -206,3 +428,77 @@ This dashboard is designed to work with the following FIWARE services:
 - **Policies** – [ODRL-PAP](https://github.com/SEAMWARE/odrl-pap)
 
 API clients are kept in sync with the OpenAPI specifications published by these services.
+
+## CI / CD Pipeline
+
+The project ships with a full GitHub Actions pipeline. The workflows live under
+[`.github/workflows/`](.github/workflows/).
+
+### Overview
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `pr-labels.yml` | `pull_request` | Enforces exactly one `major` / `minor` / `patch` label and validates the PR description format. |
+| `test.yml`      | `push`, `pull_request` | Runs `npm ci`, `npm run generate:api`, `npm run lint`, `npm run build`, and `npm test --if-present`. |
+| `pr-build.yml`  | `pull_request` | Builds a multi-arch (`linux/amd64`, `linux/arm64`) Docker image and pushes it to Quay.io tagged `<nextVersion>-PRE-<shortSha>`. |
+| `release.yml`   | `push` to `main` | Computes the next version, tags the repo, builds and pushes the multi-arch image tagged `<version>` (and `latest`), promotes release notes, and creates a GitHub Release. |
+
+### Semantic Versioning via PR Labels
+
+Every PR **must** carry exactly one of these labels:
+
+- `major` – breaking changes; bumps `MAJOR`, resets `MINOR`/`PATCH`.
+- `minor` – new features, backward compatible; bumps `MINOR`, resets `PATCH`.
+- `patch` – bug fixes, docs, tooling; bumps `PATCH`.
+
+The workflow `pr-labels.yml` — modelled after
+[FIWARE/contract-management's `check.yml`](https://github.com/FIWARE/contract-management/blob/main/.github/workflows/check.yml)
+— fails the PR if the rule is violated.
+
+### Docker Image Tagging
+
+All images are pushed to
+[`quay.io/seamware/fdsc-dashboard`](https://quay.io/repository/seamware/fdsc-dashboard).
+
+- **Pull-request builds** → `quay.io/seamware/fdsc-dashboard:<nextVersion>-PRE-<shortSha>`
+  (the `-PRE-` marker makes them easy to spot and prune).
+- **Main (release) builds** → `quay.io/seamware/fdsc-dashboard:<version>` and
+  `:latest`.
+
+Images are built for `linux/amd64` and `linux/arm64` via `docker/buildx`.
+
+### Required Secrets
+
+Configure these in the repository settings (`Settings → Secrets and variables → Actions`):
+
+| Secret           | Purpose                                               |
+|------------------|-------------------------------------------------------|
+| `QUAY_USERNAME`  | Robot account or user login for `quay.io`             |
+| `QUAY_PASSWORD`  | Token/password for the above                          |
+
+### PR Description Format
+
+PRs must follow the template in
+[`.github/pull_request_template.md`](.github/pull_request_template.md). The CI
+rejects PRs that are missing the `## Summary` or `## Release Notes` sections.
+The `## Release Notes` content is promoted to
+[`release-notes/<version>.md`](release-notes/) on merge.
+
+### Release-Notes Mechanism
+
+Two options for authoring release notes:
+
+1. **Inline** — fill in the `## Release Notes` section of the PR description
+   (recommended for most changes).
+2. **Dedicated file** — add `release-notes/next.md` on the PR branch.
+   The release workflow prefers this file over the PR body and renames it
+   to `release-notes/<version>.md` on merge. Use this for long-form or
+   multi-section notes.
+
+On every merge to `main`, the release workflow:
+
+1. Writes `release-notes/<version>.md` using the resolution above.
+2. Regenerates [`RELEASE-NOTES.md`](RELEASE-NOTES.md) — a Markdown table
+   (`Version` / `Date` / `Notes`) linking to each file in `release-notes/`.
+3. Creates an annotated git tag `v<version>` and a GitHub Release whose
+   body is the notes file.

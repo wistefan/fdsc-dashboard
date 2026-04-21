@@ -1,0 +1,52 @@
+name: PR Label & Description Check
+
+# Enforces:
+#   1. Exactly one of `major`, `minor`, `patch` labels is applied to the PR.
+#   2. The PR description matches the required template sections.
+#
+# Modeled after
+# https://github.com/FIWARE/contract-management/blob/main/.github/workflows/check.yml
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - edited
+      - labeled
+      - unlabeled
+      - synchronize
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check-labels:
+    name: Check bump label
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate bump label
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          bash .github/scripts/check-labels.sh "$PR_LABELS"
+
+  check-description:
+    name: Check PR description format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write PR body to file
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Write via a heredoc through printf to preserve newlines safely.
+          printf '%s' "$PR_BODY" > /tmp/pr-body.md
+
+      - name: Validate PR description
+        run: |
+          bash .github/scripts/check-pr-description.sh /tmp/pr-body.md

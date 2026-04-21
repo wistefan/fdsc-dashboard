@@ -1,0 +1,8 @@
+[
+  {
+    "id": "svc-policy-001",
+    "odrl:uid": "urn:uuid:c1d2e3f4-a5b6-7890-cdef-1234567890ab",
+    "odrl": "{\"@context\":\"http://www.w3.org/ns/odrl.jsonld\",\"@type\":\"Set\",\"uid\":\"urn:uuid:c1d2e3f4-a5b6-7890-cdef-1234567890ab\",\"permission\":[{\"target\":\"urn:asset:delivery-premium\",\"action\":\"use\",\"constraint\":[{\"leftOperand\":\"role\",\"operator\":\"eq\",\"rightOperand\":\"PREMIUM_CUSTOMER\"}]}]}",
+    "rego": "package policy.svc_policy_001\n\ndefault allow = false\n\nallow {\n  input.role == \"PREMIUM_CUSTOMER\"\n}"
+  }
+]
