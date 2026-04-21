@@ -6,6 +6,7 @@
       </h1>
       <v-spacer />
       <v-btn
+        v-if="canEdit"
         color="primary"
         prepend-icon="mdi-plus"
         :to="{ name: 'til-create' }"
@@ -100,11 +101,15 @@ import { onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useTilStore } from '@/stores/til'
+import { useAuth } from '@/composables/useAuth'
 import type { IssuerEntry } from '@/api/generated/tir'
 
 const { t } = useI18n()
 const router = useRouter()
 const store = useTilStore()
+
+/** Role-based capability flags for the current user. */
+const { canEdit } = useAuth()
 
 /** Column definitions for the issuers data table. */
 const headers = computed(() => [

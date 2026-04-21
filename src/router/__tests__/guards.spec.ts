@@ -219,4 +219,102 @@ describe('authGuard', () => {
       expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe('/til')
     })
   })
+
+  describe('auth enabled + requiresAdmin meta', () => {
+    beforeEach(() => {
+      setRuntimeProviders([KEYCLOAK_PROVIDER])
+    })
+
+    it.each([
+      ['til-create', 'til-list'],
+      ['til-edit', 'til-list'],
+      ['ccs-create', 'ccs-list'],
+      ['ccs-edit', 'ccs-list'],
+      ['policy-create', 'policies-list'],
+      ['policy-edit', 'policies-list'],
+      ['service-policy-create', 'policies-list'],
+      ['service-policy-edit', 'policies-list'],
+    ])(
+      'redirects a viewer away from %s to %s',
+      async (routeName, fallbackName) => {
+        const { authGuard, useAuthStore } = await freshRouter()
+        const store = useAuthStore()
+        store.user = {
+          subject: 'bob',
+          name: 'Bob',
+          role: 'viewer',
+          providerId: 'keycloak',
+        }
+        store.activeProviderId = 'keycloak'
+        const next = vi.fn()
+        authGuard(
+          buildRoute({ name: routeName, meta: { requiresAdmin: true } }),
+          buildRoute(),
+          next,
+        )
+        expect(next).toHaveBeenCalledTimes(1)
+        expect(next).toHaveBeenCalledWith({ name: fallbackName })
+      },
+    )
+
+    it('allows admins through admin-only routes', async () => {
+      const { authGuard, useAuthStore } = await freshRouter()
+      const store = useAuthStore()
+      store.user = {
+        subject: 'alice',
+        name: 'Alice',
+        role: 'admin',
+        providerId: 'keycloak',
+      }
+      store.activeProviderId = 'keycloak'
+      const next = vi.fn()
+      authGuard(
+        buildRoute({ name: 'til-create', meta: { requiresAdmin: true } }),
+        buildRoute(),
+        next,
+      )
+      expect(next).toHaveBeenCalledWith()
+    })
+
+    it('redirects an unauthenticated user to login first, not to a list fallback', async () => {
+      // Auth check runs before admin check, so unauthenticated users go
+      // through the login flow regardless of `requiresAdmin`.
+      const { authGuard, useAuthStore } = await freshRouter()
+      useAuthStore()
+      const next = vi.fn()
+      authGuard(
+        buildRoute({
+          name: 'til-create',
+          path: '/til/new',
+          fullPath: '/til/new',
+          meta: { requiresAdmin: true },
+        }),
+        buildRoute(),
+        next,
+      )
+      expect(next).toHaveBeenCalledWith({ name: 'login' })
+      expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe(
+        '/til/new',
+      )
+    })
+
+    it('falls back to home when an admin-only route has no recognised family', async () => {
+      const { authGuard, useAuthStore } = await freshRouter()
+      const store = useAuthStore()
+      store.user = {
+        subject: 'bob',
+        name: 'Bob',
+        role: 'viewer',
+        providerId: 'keycloak',
+      }
+      store.activeProviderId = 'keycloak'
+      const next = vi.fn()
+      authGuard(
+        buildRoute({ name: 'custom-admin', meta: { requiresAdmin: true } }),
+        buildRoute(),
+        next,
+      )
+      expect(next).toHaveBeenCalledWith({ name: 'home' })
+    })
+  })
 })

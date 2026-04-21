@@ -16,7 +16,7 @@
       </h1>
       <v-spacer />
       <v-btn
-        v-if="store.selectedIssuer"
+        v-if="store.selectedIssuer && canEdit"
         color="primary"
         variant="tonal"
         class="mr-2"
@@ -26,7 +26,7 @@
         {{ t('common.edit') }}
       </v-btn>
       <v-btn
-        v-if="store.selectedIssuer"
+        v-if="store.selectedIssuer && canDelete"
         color="error"
         variant="tonal"
         prepend-icon="mdi-delete"
@@ -270,6 +270,7 @@ import { onMounted, computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useTilStore } from '@/stores/til'
+import { useAuth } from '@/composables/useAuth'
 import type { TimeRange } from '@/api/generated/til'
 
 /** Timeout in milliseconds for snackbar messages. */
@@ -279,6 +280,9 @@ const props = defineProps<{ did: string }>()
 const { t } = useI18n()
 const router = useRouter()
 const store = useTilStore()
+
+/** Role-based capability flags for the current user. */
+const { canEdit, canDelete } = useAuth()
 
 /** Whether the delete confirmation dialog is visible. */
 const showDeleteDialog = ref(false)
