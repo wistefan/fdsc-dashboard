@@ -12,7 +12,7 @@
     "download:specs": "bash scripts/download-specs.sh",
     "generate:api": "bash scripts/generate-api-clients.sh",
     "license:check": "license-check-and-add check -f license-check-and-add-config.json",
-    "license:apply": "license-check-and-add add -f license-check-and-add-config.json"
+    "license:apply": "license-check-and-add add -f license-check-and-add-config.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },
