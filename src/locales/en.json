@@ -181,6 +181,22 @@
     "credentialSetOptionsHint": "e.g. id1,id2;id3,id4",
     "credentialSetPurposeHint": "JSON object"
   },
+  "auth": {
+    "signIn": "Sign in",
+    "signInWith": "Sign in with {provider}",
+    "signInTitle": "Sign in to the dashboard",
+    "signInSubtitle": "Choose an identity provider to continue.",
+    "signOut": "Sign out",
+    "noProviders": "No identity providers are configured.",
+    "returningTitle": "Signing you in…",
+    "returningSubtitle": "Completing authentication with {provider}…",
+    "callbackFailedTitle": "Sign-in failed",
+    "callbackFailed": "We could not complete the sign-in. You can try again or return to the login page.",
+    "callbackRetry": "Try again",
+    "backToLogin": "Back to login",
+    "loginRequired": "You must sign in to access this page.",
+    "unknownProvider": "Unknown identity provider."
+  },
   "policies": {
     "title": "ODRL Policies",
     "listTitle": "Policies",
