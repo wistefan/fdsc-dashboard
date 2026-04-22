@@ -56,7 +56,7 @@ function setRuntimeProviders(providers: unknown[] | null): void {
   if (providers === null) {
     delete (window as unknown as Record<string, unknown>)[RUNTIME_CONFIG_GLOBAL]
   } else {
-    ;(window as unknown as Record<string, unknown>)[RUNTIME_CONFIG_GLOBAL] = {
+    (window as unknown as Record<string, unknown>)[RUNTIME_CONFIG_GLOBAL] = {
       providers,
     }
   }
