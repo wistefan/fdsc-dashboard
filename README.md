@@ -76,6 +76,43 @@ Stop the stack with:
 docker compose down
 ```
 
+## Authentication
+
+The dashboard can attach an `Authorization: Bearer <jwt>` header to every outbound call it makes to the four backend APIs (TIL, TIR, CCS, ODRL-PAP). When no token is configured, no `Authorization` header is sent and the dashboard behaves exactly as it did before the feature was introduced.
+
+### Build-time environment variable
+
+To seed a token at build time (typically for demo or deployment pipelines), set `VITE_AUTH_TOKEN` before running `npm run dev` or `npm run build`:
+
+| Service          | Env Variable       | Default                |
+|------------------|--------------------|------------------------|
+| Auth token (JWT) | `VITE_AUTH_TOKEN`  | *(empty — no header)*  |
+
+```bash
+VITE_AUTH_TOKEN=eyJhbGciOi... npm run dev
+```
+
+The env-provided value is used only when no runtime token is present in the browser — it is **not** persisted to `localStorage`, so runtime changes always win.
+
+### Runtime dialog (app bar)
+
+Every page shows a shield icon in the top-right app bar:
+
+| Icon                              | Meaning                             |
+|-----------------------------------|-------------------------------------|
+| `mdi-shield-lock` (locked)        | A JWT is configured and is being sent with every API request. |
+| `mdi-shield-lock-open-outline`    | No JWT is configured; no `Authorization` header is sent. |
+
+Click the icon to open the **Authentication Token** dialog. The dialog shows the current token (if any) in a monospace textarea. Paste a JWT and press **Save** to configure it, or press **Clear** to remove it. The change takes effect immediately on the next API call.
+
+### Persistence
+
+Runtime tokens are stored in the browser under the `localStorage` key `fdsc-dashboard-auth-token`. They survive page reloads and, within the same browser profile, separate tabs. Saving an empty value (or pressing **Clear**) deletes the key.
+
+### Scope
+
+All four generated API clients — `TilOpenAPI`, `TirOpenAPI`, `CcsOpenAPI`, and `OdrlOpenAPI` — share a single token resolver configured in `src/api/config.ts`. There is no way to send a token to one backend but not another: the dashboard either authenticates to all four or to none.
+
 ## Running Tests
 
 The project uses [Vitest](https://vitest.dev/) as its test framework with `jsdom` for DOM emulation and `@vue/test-utils` for Vue component testing.
