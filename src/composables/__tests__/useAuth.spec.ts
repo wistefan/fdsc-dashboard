@@ -15,21 +15,14 @@
  * limitations under the License.
  */
 /**
- * Unit tests for the {@link useAuth} composable.
+ * Unit tests for the `useAuth` composable.
  *
- * Covers the three scenarios that matter to the UI layer:
- *
- * 1. Auth disabled (no providers configured) — every capability flag is
- *    `true` so the dashboard keeps its legacy open-mode behaviour.
- * 2. Auth enabled + viewer signed in — read-only flags are `true`, edit /
- *    delete flags are `false`.
- * 3. Auth enabled + admin signed in — every flag is `true`.
- *
- * The composable is a thin reactive wrapper over the auth Pinia store, so
- * the tests drive it by mutating the store state directly rather than
- * going through the whole login flow.
+ * The composable exposes two complementary APIs:
+ *  - Token-based: `token`, `setToken`, `clearToken`, `initAuth`,
+ *    `getAuthTokenSync`, plus token-backed `isAuthenticated`.
+ *  - Role-based: `isAdmin`, `isViewer`, `canEdit`, `canDelete`,
+ *    `isAuthEnabled`, backed by the OAuth2 auth Pinia store.
  */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
@@ -39,7 +32,8 @@ import {
   RUNTIME_CONFIG_GLOBAL,
 } from '@/auth/constants'
 
-/* ── Mock the OIDC facade so the auth store is driveable in isolation ── */
+/** localStorage key used by the composable to persist the JWT. */
+const STORAGE_KEY = 'fdsc-dashboard-auth-token'
 
 vi.mock('@/auth/oidcClient', () => ({
   signinRedirect: vi.fn(),
@@ -48,8 +42,6 @@ vi.mock('@/auth/oidcClient', () => ({
   getUser: vi.fn(),
   removeUser: vi.fn(),
 }))
-
-/* ── Test fixtures ─────────────────────────────────────────────────── */
 
 /** A syntactically complete provider with no optional fields. */
 const KEYCLOAK_PROVIDER_RAW = {
@@ -71,10 +63,17 @@ function setRuntimeProviders(providers: unknown[] | null): void {
 }
 
 /**
- * Re-import both the auth store and the composable under a fresh module
- * registry so every test gets a deterministic `config` ref derived from
- * the current runtime global.
+ * Helper: load a fresh copy of the `useAuth` module. Required because the
+ * composable stores its token in module-scoped state and we want every test to
+ * start from an empty token. Installs a fresh Pinia so role-based flags work.
  */
+async function loadFreshModule() {
+  vi.resetModules()
+  setActivePinia(createPinia())
+  return await import('@/composables/useAuth')
+}
+
+/** Re-import both the auth store and the composable under a fresh registry. */
 async function freshComposable(): Promise<{
   useAuth: typeof import('@/composables/useAuth').useAuth
   useAuthStore: typeof import('@/stores/auth').useAuthStore
@@ -89,16 +88,214 @@ async function freshComposable(): Promise<{
   }
 }
 
-/* ── Tests ─────────────────────────────────────────────────────────── */
-
-describe('useAuth', () => {
+describe('useAuth — token-based API', () => {
   beforeEach(() => {
+    localStorage.clear()
+    vi.unstubAllEnvs()
+    setActivePinia(createPinia())
+    setRuntimeProviders(null)
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+    vi.unstubAllEnvs()
+    setRuntimeProviders(null)
+  })
+
+  describe('setToken', () => {
+    it('stores a non-empty token in localStorage under the expected key', async () => {
+      const { useAuth } = await loadFreshModule()
+      const { setToken, token } = useAuth()
+
+      setToken('abc.def.ghi')
+
+      expect(token.value).toBe('abc.def.ghi')
+      expect(localStorage.getItem(STORAGE_KEY)).toBe('abc.def.ghi')
+    })
+
+    it('removes the localStorage entry when called with an empty string', async () => {
+      const { useAuth } = await loadFreshModule()
+      const { setToken, token } = useAuth()
+
+      setToken('abc')
+      expect(localStorage.getItem(STORAGE_KEY)).toBe('abc')
+
+      setToken('')
+
+      expect(token.value).toBe('')
+      expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    })
+
+    it.each([
+      ['leading whitespace', '   abc', 'abc'],
+      ['trailing whitespace', 'abc   ', 'abc'],
+      ['surrounding whitespace', '  abc  ', 'abc'],
+      ['whitespace only becomes empty', '   ', ''],
+    ])('trims %s', async (_label, input, expected) => {
+      const { useAuth } = await loadFreshModule()
+      const { setToken, token } = useAuth()
+
+      setToken(input)
+
+      expect(token.value).toBe(expected)
+      if (expected.length > 0) {
+        expect(localStorage.getItem(STORAGE_KEY)).toBe(expected)
+      } else {
+        expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+      }
+    })
+  })
+
+  describe('clearToken', () => {
+    it('is equivalent to setToken("")', async () => {
+      const { useAuth } = await loadFreshModule()
+      const { setToken, clearToken, token } = useAuth()
+
+      setToken('abc')
+      expect(token.value).toBe('abc')
+      expect(localStorage.getItem(STORAGE_KEY)).toBe('abc')
+
+      clearToken()
+
+      expect(token.value).toBe('')
+      expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    })
+  })
+
+  describe('isAuthenticated (token-backed when auth is disabled)', () => {
+    it.each([
+      ['empty token', '', false],
+      ['non-empty token', 'jwt', true],
+    ])('is %s → %s', async (_label, tokenValue, expected) => {
+      const { useAuth } = await loadFreshModule()
+      const { setToken, isAuthenticated } = useAuth()
+
+      setToken(tokenValue)
+
+      expect(isAuthenticated.value).toBe(expected)
+    })
+
+    it('reacts to subsequent setToken/clearToken calls', async () => {
+      const { useAuth } = await loadFreshModule()
+      const { setToken, clearToken, isAuthenticated } = useAuth()
+
+      expect(isAuthenticated.value).toBe(false)
+
+      setToken('jwt')
+      expect(isAuthenticated.value).toBe(true)
+
+      clearToken()
+      expect(isAuthenticated.value).toBe(false)
+    })
+  })
+
+  describe('initAuth', () => {
+    it('restores a token persisted in localStorage', async () => {
+      localStorage.setItem(STORAGE_KEY, 'persisted.jwt')
+      const { useAuth } = await loadFreshModule()
+      const { initAuth, token } = useAuth()
+
+      initAuth()
+
+      expect(token.value).toBe('persisted.jwt')
+    })
+
+    it('falls back to VITE_AUTH_TOKEN when localStorage is empty', async () => {
+      vi.stubEnv('VITE_AUTH_TOKEN', 'env.jwt.value')
+      const { useAuth } = await loadFreshModule()
+      const { initAuth, token } = useAuth()
+
+      initAuth()
+
+      expect(token.value).toBe('env.jwt.value')
+    })
+
+    it('prefers localStorage over VITE_AUTH_TOKEN when both are set', async () => {
+      localStorage.setItem(STORAGE_KEY, 'persisted.jwt')
+      vi.stubEnv('VITE_AUTH_TOKEN', 'env.jwt.value')
+      const { useAuth } = await loadFreshModule()
+      const { initAuth, token } = useAuth()
+
+      initAuth()
+
+      expect(token.value).toBe('persisted.jwt')
+    })
+
+    it('leaves the token empty when neither source is configured', async () => {
+      const { useAuth } = await loadFreshModule()
+      const { initAuth, token, isAuthenticated } = useAuth()
+
+      initAuth()
+
+      expect(token.value).toBe('')
+      expect(isAuthenticated.value).toBe(false)
+    })
+
+    it('does not persist an env-seeded token to localStorage', async () => {
+      vi.stubEnv('VITE_AUTH_TOKEN', 'env.jwt.value')
+      const { useAuth } = await loadFreshModule()
+      const { initAuth } = useAuth()
+
+      initAuth()
+
+      expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    })
+  })
+
+  describe('getAuthTokenSync', () => {
+    it('returns the current token synchronously (no promise)', async () => {
+      const { useAuth, getAuthTokenSync } = await loadFreshModule()
+      const { setToken } = useAuth()
+
+      setToken('abc.def')
+
+      const result = getAuthTokenSync()
+      expect(result).toBe('abc.def')
+      expect(typeof result).toBe('string')
+      expect((result as unknown as { then?: unknown }).then).toBeUndefined()
+    })
+
+    it('returns an empty string when no token is configured', async () => {
+      const { getAuthTokenSync } = await loadFreshModule()
+
+      expect(getAuthTokenSync()).toBe('')
+    })
+
+    it('reflects the latest value after setToken/clearToken', async () => {
+      const { useAuth, getAuthTokenSync } = await loadFreshModule()
+      const { setToken, clearToken } = useAuth()
+
+      setToken('one')
+      expect(getAuthTokenSync()).toBe('one')
+
+      setToken('two')
+      expect(getAuthTokenSync()).toBe('two')
+
+      clearToken()
+      expect(getAuthTokenSync()).toBe('')
+    })
+  })
+
+  describe('exported constants', () => {
+    it('exposes the localStorage key and env-var name as documented', async () => {
+      const mod = await loadFreshModule()
+
+      expect(mod.AUTH_TOKEN_STORAGE_KEY).toBe(STORAGE_KEY)
+      expect(mod.AUTH_TOKEN_ENV_KEY).toBe('VITE_AUTH_TOKEN')
+    })
+  })
+})
+
+describe('useAuth — role-based API', () => {
+  beforeEach(() => {
+    localStorage.clear()
     setActivePinia(createPinia())
     vi.clearAllMocks()
     setRuntimeProviders(null)
   })
 
   afterEach(() => {
+    localStorage.clear()
     setRuntimeProviders(null)
   })
 
@@ -107,14 +304,13 @@ describe('useAuth', () => {
       setRuntimeProviders([])
     })
 
-    it('reports all capability flags as true', async () => {
+    it('reports every role capability flag as true', async () => {
       const { useAuth } = await freshComposable()
       const auth = useAuth()
       expect(auth.isAdmin.value).toBe(true)
       expect(auth.isViewer.value).toBe(true)
       expect(auth.canEdit.value).toBe(true)
       expect(auth.canDelete.value).toBe(true)
-      expect(auth.isAuthenticated.value).toBe(true)
       expect(auth.isAuthEnabled.value).toBe(false)
     })
   })

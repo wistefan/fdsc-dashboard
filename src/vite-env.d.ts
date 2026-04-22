@@ -32,6 +32,12 @@ interface ImportMetaEnv {
   /** Base URL for the ODRL-PAP API. */
   readonly VITE_ODRL_API_URL: string
   /**
+   * Optional build-time seed for the JWT sent as `Authorization: Bearer …`
+   * on every API request. When set, the value is loaded at startup unless a
+   * user-provided token is already persisted in `localStorage`.
+   */
+  readonly VITE_AUTH_TOKEN?: string
+  /**
    * JSON-encoded list of OAuth2 / OIDC provider configurations used as a
    * build-time fallback when no runtime configuration is injected via
    * `window.__AUTH_CONFIG__`. May be either a raw array of provider objects

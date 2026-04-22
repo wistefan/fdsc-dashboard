@@ -76,6 +76,43 @@ Stop the stack with:
 docker compose down
 ```
 
+## Authentication
+
+The dashboard can attach an `Authorization: Bearer <jwt>` header to every outbound call it makes to the four backend APIs (TIL, TIR, CCS, ODRL-PAP). When no token is configured, no `Authorization` header is sent and the dashboard behaves exactly as it did before the feature was introduced.
+
+### Build-time environment variable
+
+To seed a token at build time (typically for demo or deployment pipelines), set `VITE_AUTH_TOKEN` before running `npm run dev` or `npm run build`:
+
+| Service          | Env Variable       | Default                |
+|------------------|--------------------|------------------------|
+| Auth token (JWT) | `VITE_AUTH_TOKEN`  | *(empty — no header)*  |
+
+```bash
+VITE_AUTH_TOKEN=eyJhbGciOi... npm run dev
+```
+
+The env-provided value is used only when no runtime token is present in the browser — it is **not** persisted to `localStorage`, so runtime changes always win.
+
+### Runtime dialog (app bar)
+
+Every page shows a shield icon in the top-right app bar:
+
+| Icon                              | Meaning                             |
+|-----------------------------------|-------------------------------------|
+| `mdi-shield-lock` (locked)        | A JWT is configured and is being sent with every API request. |
+| `mdi-shield-lock-open-outline`    | No JWT is configured; no `Authorization` header is sent. |
+
+Click the icon to open the **Authentication Token** dialog. The dialog shows the current token (if any) in a monospace textarea. Paste a JWT and press **Save** to configure it, or press **Clear** to remove it. The change takes effect immediately on the next API call.
+
+### Persistence
+
+Runtime tokens are stored in the browser under the `localStorage` key `fdsc-dashboard-auth-token`. They survive page reloads and, within the same browser profile, separate tabs. Saving an empty value (or pressing **Clear**) deletes the key.
+
+### Scope
+
+All four generated API clients — `TilOpenAPI`, `TirOpenAPI`, `CcsOpenAPI`, and `OdrlOpenAPI` — share a single token resolver configured in `src/api/config.ts`. There is no way to send a token to one backend but not another: the dashboard either authenticates to all four or to none.
+
 ## Running Tests
 
 The project uses [Vitest](https://vitest.dev/) as its test framework with `jsdom` for DOM emulation and `@vue/test-utils` for Vue component testing.
@@ -129,74 +166,12 @@ The Vitest configuration is defined in `vitest.config.ts` at the project root. I
 | `npm run dev`           | Start the Vite dev server with HMR                      |
 | `npm run build`         | Type-check and build for production                     |
 | `npm run preview`       | Preview the production build locally                    |
+| `npm run test`          | Run all unit tests once                                 |
+| `npm run test:watch`    | Run unit tests in watch mode                            |
 | `npm run lint`          | Lint source files with ESLint (auto-fix)                |
 | `npm run format`        | Format source files with Prettier                       |
 | `npm run license:check` | Verify every in-scope source file has a license header  |
 | `npm run license:apply` | Prepend the Apache 2.0 license header to any file that is missing it |
-
-## License headers
-
-Every in-scope source file must carry the Apache 2.0 copyright header defined in
-[`scripts/license-header.txt`](scripts/license-header.txt). Header verification and
-insertion are handled by the [`license-check-and-add`](https://www.npmjs.com/package/license-check-and-add)
-npm package, which is driven by [`license-check-and-add-config.json`](license-check-and-add-config.json)
-at the repo root.
-
-### Scripts
-
-- `npm run license:check` — verifies that every in-scope file starts with the
-  expected header. Fails (non-zero exit) and prints the offending file paths when a
-  file is missing the header. This is the command CI runs.
-- `npm run license:apply` — prepends the header to any in-scope file that is
-  missing it. The operation is idempotent: running it on an already-compliant tree
-  leaves every file byte-identical.
-
-### Scope
-
-The default config limits the tool to `.ts` and `.vue` files under `src/`. The
-following paths are intentionally excluded:
-
-- `src/api/generated/**` — regenerated from upstream OpenAPI specs; headers are
-  re-applied automatically by `scripts/generate-api-clients.sh` (see below).
-- `src/locales/**` — JSON files cannot contain comments.
-- `.github/**`, `mocks/**`, `public/**`, `scripts/**` and root-level config files
-  (`vite.config.ts`, `tsconfig*.json`, `Dockerfile`, etc.) — not considered
-  "source files" per the ticket scope.
-
-### CI enforcement
-
-The [`license-check`](.github/workflows/license-check.yml) GitHub Actions workflow
-runs `npm run license:check` on every push to `main` and every pull request, so a
-PR that introduces an unlicensed file will fail CI.
-
-### Adding a new source file
-
-Create the file as usual, then run:
-
-```bash
-npm run license:apply
-```
-
-…and commit the resulting change alongside your other modifications. Alternatively,
-paste the content of `scripts/license-header.txt` (wrapped in a `/* … */` block
-comment) at the top of the file manually.
-
-### Regenerated API clients
-
-When you run `npm run generate:api`, the script calls `license-check-and-add` a
-second time using [`license-check-and-add-generated-config.json`](license-check-and-add-generated-config.json),
-which is narrowed to `src/api/generated/**`. This keeps the generated output
-license-compliant without forcing the default `license:check` task to scan
-machine-written code.
-| Command              | Description                                   |
-|----------------------|-----------------------------------------------|
-| `npm run dev`        | Start the Vite dev server with HMR            |
-| `npm run build`      | Type-check and build for production           |
-| `npm run preview`    | Preview the production build locally          |
-| `npm run test`       | Run all unit tests once                       |
-| `npm run test:watch` | Run unit tests in watch mode                  |
-| `npm run lint`       | Lint source files with ESLint (auto-fix)      |
-| `npm run format`     | Format source files with Prettier             |
 
 ## Linting & Code Formatting
 
@@ -255,6 +230,61 @@ Most editors support ESLint integration:
 
 - **VS Code**: Install the [ESLint extension](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint). Enable "Format on Save" and set ESLint as the default formatter for `.vue` and `.ts` files.
 - **WebStorm / IntelliJ**: ESLint support is built in. Go to *Settings → Languages & Frameworks → JavaScript → Code Quality Tools → ESLint* and select "Automatic ESLint configuration".
+
+## License headers
+
+Every in-scope source file must carry the Apache 2.0 copyright header defined in
+[`scripts/license-header.txt`](scripts/license-header.txt). Header verification and
+insertion are handled by the [`license-check-and-add`](https://www.npmjs.com/package/license-check-and-add)
+npm package, which is driven by [`license-check-and-add-config.json`](license-check-and-add-config.json)
+at the repo root.
+
+### Scripts
+
+- `npm run license:check` — verifies that every in-scope file starts with the
+  expected header. Fails (non-zero exit) and prints the offending file paths when a
+  file is missing the header. This is the command CI runs.
+- `npm run license:apply` — prepends the header to any in-scope file that is
+  missing it. The operation is idempotent: running it on an already-compliant tree
+  leaves every file byte-identical.
+
+### Scope
+
+The default config limits the tool to `.ts` and `.vue` files under `src/`. The
+following paths are intentionally excluded:
+
+- `src/api/generated/**` — regenerated from upstream OpenAPI specs; headers are
+  re-applied automatically by `scripts/generate-api-clients.sh` (see below).
+- `src/locales/**` — JSON files cannot contain comments.
+- `.github/**`, `mocks/**`, `public/**`, `scripts/**` and root-level config files
+  (`vite.config.ts`, `tsconfig*.json`, `Dockerfile`, etc.) — not considered
+  "source files" per the ticket scope.
+
+### CI enforcement
+
+The [`license-check`](.github/workflows/license-check.yml) GitHub Actions workflow
+runs `npm run license:check` on every push to `main` and every pull request, so a
+PR that introduces an unlicensed file will fail CI.
+
+### Adding a new source file
+
+Create the file as usual, then run:
+
+```bash
+npm run license:apply
+```
+
+…and commit the resulting change alongside your other modifications. Alternatively,
+paste the content of `scripts/license-header.txt` (wrapped in a `/* … */` block
+comment) at the top of the file manually.
+
+### Regenerated API clients
+
+When you run `npm run generate:api`, the script calls `license-check-and-add` a
+second time using [`license-check-and-add-generated-config.json`](license-check-and-add-generated-config.json),
+which is narrowed to `src/api/generated/**`. This keeps the generated output
+license-compliant without forcing the default `license:check` task to scan
+machine-written code.
 
 ## Building for Production
 

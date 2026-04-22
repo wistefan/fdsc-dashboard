@@ -180,3 +180,500 @@ the mechanism works.
   containing the header (idempotent on repeat runs).
 - `README.md` renders cleanly on GitHub and documents both scripts plus the CI guard.
 - `npm run license:check` still exits `0` after Steps 3–5 combined.
+
+---
+
+# Implementation Plan: Dashboard OAuth2 Authentication (Ticket #10)
+
+## Overview
+
+Add optional OAuth2 / OpenID Connect authentication to the FDSC Dashboard with
+the following behaviour:
+
+- If no OAuth2 provider is configured, the dashboard operates exactly as today
+  (no sign-in required, no guards, no user menu).
+- Operators can configure **one or more** OAuth2 providers. When at least one
+  provider is configured, users must authenticate before using the dashboard.
+- Two roles are supported:
+  - `viewer` — read-only access to all endpoints (no create / edit / delete).
+  - `admin` — full access to all functionality.
+- Configuration is injected at runtime (via nginx env-var templating into a
+  `window.__AUTH_CONFIG__` global) and can also be provided at build time via
+  `VITE_AUTH_*` environment variables for local development.
+
+The design follows the project's established conventions:
+- JSDoc on every exported symbol.
+- No magic constants — named constants live in dedicated `constants.ts` files.
+- Errors bubble up through Pinia stores with `ApiError`-style handling where
+  applicable.
+- Every user-facing string goes through Vue I18n.
+- Each step is independently mergeable, reviewable, and tested.
+
+## Terminology
+
+- **Provider** — a configured OAuth2 / OIDC Identity Provider (e.g. Keycloak).
+  Each provider has an `id`, `displayName`, `issuer`, `clientId`, `scopes`, and
+  an optional `rolesClaimPath` for extracting the user's role from the token.
+- **Auth enabled** — at least one provider is configured.
+- **User** — the authenticated subject with a `subject`, `name`, `email`,
+  `roles`, `providerId`.
+
+## Steps
+
+### Step 1: Auth configuration types and runtime loader
+
+Lay the groundwork for the whole feature by defining the authentication data
+model and a runtime configuration loader.
+
+**Files (new):**
+- `src/auth/constants.ts` — role identifiers, default OAuth2 scopes, storage
+  keys, and the name of the runtime-config global.
+- `src/auth/types.ts` — `Role`, `OAuthProviderConfig`, `AuthConfig`,
+  `AuthenticatedUser` TypeScript types.
+- `src/auth/config.ts` — `loadAuthConfig()`, `isAuthEnabled()`, and
+  `getProviderById()` helpers. Reads config from
+  `window.__AUTH_CONFIG__` (runtime) with a fallback to `VITE_AUTH_PROVIDERS`
+  (build-time JSON string) for local development.
+- `src/auth/__tests__/config.spec.ts` — parameterised unit tests covering:
+  empty config → disabled, malformed JSON → disabled with logged warning,
+  single provider, multiple providers, fallback to `DEFAULT_OAUTH_SCOPES`
+  when scopes are omitted.
+- `src/vite-env.d.ts` — extend with `VITE_AUTH_PROVIDERS` typing and the
+  `window.__AUTH_CONFIG__` global declaration.
+
+**Acceptance criteria:**
+- `loadAuthConfig()` returns a deterministic `AuthConfig` object.
+- `isAuthEnabled(config)` returns `false` for an empty provider list and
+  `true` otherwise.
+- `DEFAULT_OAUTH_SCOPES = ['openid', 'profile']` (no `email` — data
+  minimisation).
+- All new symbols carry JSDoc.
+- `npm run test` passes.
+- `npm run lint` and `npx vue-tsc --noEmit` pass.
+
+### Step 2: OIDC client wrapper (oidc-client-ts integration)
+
+Add `oidc-client-ts` and expose a thin per-provider facade the store can call.
+
+**Files:**
+- `package.json` — add `oidc-client-ts` runtime dependency.
+- `src/auth/oidcClient.ts` — `createUserManager(provider)`, plus
+  `signinRedirect`, `signinRedirectCallback`, `signoutRedirect`,
+  `getUser`, `removeUser` helpers. PKCE authorisation-code flow.
+  Uses `sessionStorage` for state and a dedicated storage key per provider.
+- `src/auth/__tests__/oidcClient.spec.ts` — unit tests that mock
+  `oidc-client-ts` and verify the UserManager is constructed with the correct
+  `authority`, `client_id`, `redirect_uri`, `response_type`, and `scope`.
+
+**Acceptance criteria:**
+- UserManager settings derive from `OAuthProviderConfig` with no duplication.
+- Redirect URI is built from `window.location.origin` and the callback
+  route so it works in dev, preview, and production.
+- Silent renew is wired up when the provider config sets `silentRenew: true`.
+
+### Step 3: Auth Pinia store
+
+Create `src/stores/auth.ts` with the runtime auth state plus actions.
+
+**State:** `config` (from Step 1), `user` (`AuthenticatedUser | null`),
+`activeProviderId`, `status` (`idle` | `authenticating` | `authenticated` |
+`error`), `error`.
+
+**Getters:** `isAuthEnabled`, `isAuthenticated`, `isAdmin`, `isViewer`,
+`providers` (list for the login picker).
+
+**Actions:** `init()` (read from storage, restore session), `login(providerId)`,
+`handleCallback(providerId, url)`, `logout()`, `$reset()`.
+
+**Role extraction:** follow the provider's `rolesClaimPath` (defaults to
+`realm_access.roles` — Keycloak style), map to the canonical `Role` enum,
+and fall back to `viewer` when no matching role is found.
+
+**Files:**
+- `src/stores/auth.ts` (new).
+- `src/stores/__tests__/auth.spec.ts` (new) — covers init from stored user,
+  login redirect, callback success / failure, logout, role mapping.
+
+### Step 4: Login view, callback view, router guard
+
+**Files:**
+- `src/views/auth/LoginView.vue` — lists configured providers as
+  "Sign in with &lt;provider&gt;" buttons. Auto-redirects when exactly one
+  provider is configured and the user is already authenticated.
+- `src/views/auth/CallbackView.vue` — three-state rendering (loading, error
+  with retry, success → redirect to `returnTo` or `/`). Calls
+  `store.handleCallback()` on mount.
+- `src/router/index.ts` — add `/login` and `/callback/:providerId` routes.
+  Install a `beforeEach` guard that, when `isAuthEnabled`, requires
+  `isAuthenticated` for every route except the login/callback pair, and
+  preserves `returnTo`.
+
+**Acceptance criteria:**
+- With no providers configured, no redirects happen, no guard interferes.
+- With providers configured, an unauthenticated user is sent to `/login`
+  preserving the target route.
+- Logout returns the user to `/login` and clears storage.
+
+### Step 5: RBAC — role-based UI gating
+
+**Files:**
+- `src/composables/useAuth.ts` — `isAdmin`, `isViewer`, `canEdit`, `canDelete`
+  reactive helpers that return `true` when auth is disabled (backwards compat).
+- `src/views/til/TilListView.vue`, `CcsListView.vue`, `PolicyListView.vue` —
+  hide the "Create" button when `!canEdit`.
+- `src/views/til/TilDetailView.vue`, `CcsDetailView.vue`, `PolicyDetailView.vue`
+  — hide Edit/Delete actions when `!canEdit` / `!canDelete`.
+- `src/views/til/TilFormView.vue`, `CcsFormView.vue`, `PolicyFormView.vue` —
+  the route guard blocks viewer access to these, but add a defensive redirect
+  in the component as well.
+
+**Acceptance criteria:**
+- Viewer cannot see or navigate to create/edit/delete controls.
+- Admin sees the current full UI.
+- Auth-disabled mode preserves today's behaviour exactly.
+
+### Step 6: App bar integration & i18n
+
+**Files:**
+- `src/App.vue` — add a user menu showing the user's name, provider, role, and
+  a Logout item. Hidden when auth is disabled.
+- `src/views/auth/LoginView.vue` — picks up i18n strings.
+- `src/locales/en.json` — new `auth` section with `signIn`, `signInWith`,
+  `signOut`, `role`, `viewer`, `admin`, `provider`, `loginRequired`,
+  `callbackFailed`, `callbackRetry`, etc.
+
+### Step 7: Runtime configuration templating
+
+**Files:**
+- `public/config.template.js` — `window.__AUTH_CONFIG__ = ${AUTH_CONFIG_JSON};`
+  placeholder template.
+- `Dockerfile` — add an entrypoint that runs `envsubst` (or a small shell
+  script) to materialise `/usr/share/nginx/html/config.js` from the template
+  at container start.
+- `index.html` — `<script src="/config.js"></script>` before the bundle.
+- `README.md` — document the `AUTH_CONFIG_JSON` env var, the expected JSON
+  shape, and an example Keycloak configuration.
+
+**Acceptance criteria:**
+- `docker run -e AUTH_CONFIG_JSON='{"providers":[...]}' fdsc-dashboard`
+  activates auth without rebuilding the image.
+- Omitting the env var leaves `providers: []` → auth disabled.
+
+### Step 8: Tests, documentation, and polish
+
+**Files:**
+- `src/views/__tests__/LoginView.spec.ts`, `CallbackView.spec.ts` — component
+  tests covering the three render states and navigation.
+- `src/router/__tests__/guards.spec.ts` — guard tests with a mocked store.
+- `README.md` — a dedicated "Authentication" section with the Keycloak
+  example realm config.
+- `src/locales/en.json` — i18n completeness pass.
+- Run `npm run lint`, `npx vue-tsc --noEmit`, `npm run build`, `npm run test`
+  — all must pass with zero errors.
+
+---
+
+# Implementation Plan: CI for fdsc-dashboard (Ticket #11)
+
+## Background
+
+The `fdsc-dashboard` project has no continuous integration pipeline yet. This plan
+introduces a GitHub Actions based CI/CD pipeline that covers testing, PR label
+enforcement, semantic versioning, multi-arch Docker image building/pushing to
+`quay.io/seamware/fdsc-dashboard`, and an auditable release-notes mechanism.
+
+## Goals
+
+1. Enforce a `major`/`minor`/`patch` label on every pull request.
+2. Compute the next semantic version automatically from the applied label.
+3. Run the test / lint / build pipeline on every push and pull request.
+4. Build and push multi-arch (`linux/amd64`, `linux/arm64`) Docker images to
+   `quay.io/seamware/fdsc-dashboard`:
+   - PR builds are tagged `<version>-PRE-<sha>` (the `-PRE-` marker makes them
+     easy to identify as pre-release artefacts).
+   - Post-merge builds on `main` are tagged with the generated semantic
+     version (and `latest`).
+5. Provide an enforced PR description format that produces the release note
+   body automatically.
+6. Allow contributors to ship a dedicated `release-notes/<version>.md` file in
+   their PR branch (overrides the description-derived note).
+7. Maintain `RELEASE-NOTES.md` at repo root as a table that links to individual
+   release notes in `release-notes/`.
+
+## Step Summary
+
+| # | Title | Artefacts |
+|---|---|---|
+| 1 | Full CI/CD pipeline, versioning, release-notes mechanism | `.github/workflows/*.yml`, `.github/scripts/*.sh`, `.github/pull_request_template.md`, `RELEASE-NOTES.md`, `release-notes/`, `README.md` section on CI |
+
+Because the project is green-field with respect to CI, the entire pipeline is
+delivered as a single cohesive change: every piece is interdependent (the release
+job reads the version computed by the label check, the docker tags come from the
+same version computer, etc.). Splitting the change into multiple sub-steps would
+leave the repository in broken intermediate states where (for example) PR
+images are built but no version can be computed.
+
+## Step 1 — Detailed Design
+
+### 1.1 Workflows
+
+- **`.github/workflows/pr-labels.yml`** — runs on `pull_request` events
+  (`opened`, `reopened`, `labeled`, `unlabeled`, `synchronize`, `edited`).
+  Uses `.github/scripts/check-labels.sh` to assert exactly one of
+  `major`, `minor`, `patch` is applied; fails otherwise. Also validates
+  that the PR description matches the enforced format using
+  `.github/scripts/check-pr-description.sh`.
+
+- **`.github/workflows/test.yml`** — runs on `push` (any branch) and
+  `pull_request`. Checks out the repo, installs Node 20, runs
+  `npm ci`, `npm run lint`, `npm run build`. A separate `test` step runs
+  `npm test --if-present` so the workflow keeps working once actual unit
+  tests are added to the project later.
+
+- **`.github/workflows/pr-build.yml`** — runs on `pull_request`
+  (synchronized). Computes the next version
+  from the applied label and the latest git tag, tags the Docker image
+  `<nextVersion>-PRE-<shortSha>`, and pushes a multi-arch build to
+  `quay.io/seamware/fdsc-dashboard`. Uses `docker/setup-buildx-action`
+  with `linux/amd64,linux/arm64`.
+
+- **`.github/workflows/release.yml`** — runs on `push` to `main`
+  (i.e., after a PR merge). Computes the new version from the merged PR's
+  label, creates an annotated git tag, builds and pushes the multi-arch
+  image tagged with the version (and `latest`), then:
+  - Writes `release-notes/<version>.md` either from the dedicated file the
+    PR branch supplied, or from the PR description (the "## Release Notes"
+    section).
+  - Regenerates `RELEASE-NOTES.md` (table of version → link → date).
+  - Creates a GitHub Release pointing to the version tag.
+
+### 1.2 Helper Scripts (`.github/scripts/`)
+
+- `check-labels.sh` — validates that a PR carries exactly one of
+  `major`, `minor`, `patch`.
+- `check-pr-description.sh` — validates that the PR body contains the
+  required template sections (`## Summary`, `## Release Notes`).
+- `compute-next-version.sh` — reads the latest `vMAJOR.MINOR.PATCH` tag and
+  the chosen bump label, outputs the next version.
+- `extract-release-notes.sh` — on post-merge, prefers
+  `release-notes/<version>.md` in the PR branch if it exists, otherwise
+  extracts the `## Release Notes` section of the PR body and writes it to
+  `release-notes/<version>.md`.
+- `update-release-notes-index.sh` — regenerates `RELEASE-NOTES.md` as a
+  Markdown table with columns *Version*, *Date*, *Notes*.
+
+### 1.3 PR Template
+
+- `.github/pull_request_template.md` — defines `## Summary`,
+  `## Release Notes`, `## Testing` sections with placeholders. The
+  description check workflow enforces the first two.
+
+### 1.4 Dedicated Release-Notes File Mechanism
+
+A contributor who wants richer, multi-section release notes may add a file
+`release-notes/next.md` on the PR branch. On merge, the release workflow
+renames it to `release-notes/<version>.md` and uses it verbatim instead of
+the PR body. This keeps trivial PRs lightweight (description only) while
+still allowing elaborate release notes when needed.
+
+### 1.5 Secrets
+
+Requires `QUAY_USERNAME` and `QUAY_PASSWORD` (or `QUAY_ROBOT_TOKEN`) repo
+secrets — documented in the README.
+
+## Definition of Done
+
+- All workflow files parse correctly (`yamllint`-style valid YAML) and
+  reference existing scripts.
+- Helper scripts are executable and have self-tests (`--help`/`--version`
+  exit cleanly, parameterized internal logic).
+- README contains a new "CI/CD" section explaining the label flow, image
+  tagging, PR template, and release-notes mechanism.
+- `RELEASE-NOTES.md` exists with a placeholder entry explaining the format.
+- `release-notes/` folder exists with a `README.md` entry explaining the
+  dedicated-file override.
+
+---
+
+# Implementation Plan: fdsc-dashboard should propagate tokens to the backend apis
+
+## Overview
+When auth is configured, the dashboard must attach `Authorization: Bearer <jwt>` on every outbound call to the three managed-resource backends (TIL, CCS, ODRL-PAP) and, for consistency, to the TIR read API. When no token is configured, no `Authorization` header is sent and the current behavior is preserved. The implementation introduces a single reactive auth composable that owns the current JWT, wires a shared token **resolver** into each generated OpenAPI client's `TOKEN` field (picked up automatically by the existing `getHeaders` helper), and adds a minimal UI affordance so users can set/clear a token at runtime. Bootstrapping supports a build-time `VITE_AUTH_TOKEN` env var and a persisted runtime override in `localStorage`.
+
+## Steps
+
+### Step 1: Create the auth composable with reactive token state
+Create `src/composables/useAuth.ts` that owns the application's JWT and exposes a reactive API, mirroring the style used by `src/composables/useTheme.ts` and `src/composables/useLocale.ts` (module-level state + `init*` function called from `App.vue`).
+
+**Requirements:**
+- Module-level `ref<string>('')` holding the current token. Empty string means "no token / unauthenticated".
+- Named constants at the top of the file:
+  - `AUTH_TOKEN_STORAGE_KEY = 'fdsc-dashboard-auth-token'`
+  - `AUTH_TOKEN_ENV_KEY = 'VITE_AUTH_TOKEN'` (documentation only; the env is read via `import.meta.env.VITE_AUTH_TOKEN`).
+- `useAuth()` returns:
+  - `token` – `ComputedRef<string>` of the current token.
+  - `isAuthenticated` – `ComputedRef<boolean>` = `token.value.length > 0`.
+  - `setToken(value: string): void` – trims whitespace, stores in the ref, persists non-empty values to `localStorage`, removes the key when empty.
+  - `clearToken(): void` – convenience wrapper for `setToken('')`.
+  - `initAuth(): void` – called once at app startup. Resolution order:
+    1. `localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)` if present.
+    2. `import.meta.env.VITE_AUTH_TOKEN` if present and non-empty.
+    3. No-op (stays empty).
+  - `getAuthTokenSync(): string` – non-reactive getter, used by the API-client resolver (see Step 3) so it can be called from non-component contexts without needing to re-run `useAuth()`.
+- All public functions documented with JSDoc. No magic constants.
+
+**Files:**
+- `src/composables/useAuth.ts` (new)
+- `src/vite-env.d.ts` (modify — add `readonly VITE_AUTH_TOKEN?: string` to `ImportMetaEnv`)
+
+**Acceptance criteria:**
+- `useAuth()` returns a stable object whose `token` reacts to `setToken`/`clearToken`.
+- `initAuth()` prefers `localStorage` over the env var when both are present.
+- `setToken('')` removes the `localStorage` entry; `setToken('abc')` writes it.
+- No changes yet to any API-client configuration — the composable is wired in Step 3.
+
+### Step 2: Call `initAuth()` at application startup
+Invoke the new composable's initializer alongside the existing theme and locale initializers so the token is loaded before the first render.
+
+**Requirements:**
+- In `src/App.vue`, import `useAuth` and call `initAuth()` inside the existing `onMounted` block (next to `initTheme()` and `initLocale()`).
+- Order: `initAuth()` is called **before** `initTheme()`/`initLocale()` is irrelevant functionally, but place it first so the token is present if any early route guard ever needs it.
+- No other changes in this step.
+
+**Files:**
+- `src/App.vue` (modify — add `initAuth()` call)
+
+**Acceptance criteria:**
+- `npm run dev` starts with no console errors.
+- A token set in `localStorage` under `fdsc-dashboard-auth-token` is available via `useAuth().token` on mount.
+- The app still renders identically when no token is configured.
+
+### Step 3: Wire a shared token resolver into every generated OpenAPI client
+Modify `src/api/config.ts` so each generated client emits `Authorization: Bearer <jwt>` whenever a token is present, and no `Authorization` header otherwise. The existing generated `getHeaders` helper in `core/request.ts` (line 158-160 of each generated client) already adds the header when `TOKEN` resolves to a non-empty string — so all we need is to set `OpenAPI.TOKEN` to a `Resolver<string>`.
+
+**Requirements:**
+- Import `getAuthTokenSync` from `@/composables/useAuth`.
+- Define a module-level resolver:
+  ```ts
+  const authTokenResolver = async (): Promise<string> => getAuthTokenSync()
+  ```
+  JSDoc must state that returning an empty string suppresses the `Authorization` header (because `isStringWithValue` in the generated `request.ts` returns false for empty strings).
+- In `configureApiClients()`, after setting each client's `BASE`, also set:
+  ```ts
+  TilOpenAPI.TOKEN = authTokenResolver
+  TirOpenAPI.TOKEN = authTokenResolver
+  CcsOpenAPI.TOKEN = authTokenResolver
+  OdrlOpenAPI.TOKEN = authTokenResolver
+  ```
+- The resolver must be a single shared reference (one function literal) to make equality checks in tests straightforward.
+- Do not edit anything under `src/api/generated/` — that directory is auto-generated.
+- The resolver is a `Resolver<string>` per the generated `OpenAPIConfig` type signature (`TOKEN?: string | Resolver<string> | undefined`) so no `any` casts are required.
+
+**Files:**
+- `src/api/config.ts` (modify)
+
+**Acceptance criteria:**
+- With a token present (`setToken('dummy.jwt.value')`), every outbound request to TIL, CCS, ODRL, and TIR carries `Authorization: Bearer dummy.jwt.value`.
+- With no token, **no** `Authorization` header is emitted (verified via browser devtools or a unit test that inspects request headers).
+- TypeScript compiles cleanly; `npx vue-tsc --noEmit` passes.
+- No changes required in any view, store, or generated client.
+
+### Step 4: Add a minimal auth-token affordance to the app bar
+Provide a small UI so users can set/clear a JWT at runtime without editing `localStorage` by hand. This satisfies the "when auth is configured" branch explicitly and is the minimum UX needed to verify the feature end-to-end.
+
+**Requirements:**
+- In `src/App.vue`, add a new icon button in the app bar, placed before the theme toggle:
+  - Icon `mdi-shield-lock` when `isAuthenticated.value === true`.
+  - Icon `mdi-shield-lock-open-outline` when unauthenticated.
+  - `aria-label` bound to a new i18n key `auth.toggle`.
+- Clicking it opens a `v-dialog` containing:
+  - Title `auth.dialogTitle` ("Authentication Token").
+  - A `v-textarea` (monospace, rows=4) bound to a local `tokenInput` ref, labeled via `auth.tokenLabel`.
+  - A help string `auth.tokenHelp` ("Paste a JWT. It will be sent as `Authorization: Bearer …` on all API calls and persisted in your browser.").
+  - Footer actions: `common.cancel`, `auth.clear` (disabled when no token is set), and `auth.save`.
+- `auth.save` calls `setToken(tokenInput.value)` then closes the dialog.
+- `auth.clear` calls `clearToken()` and closes the dialog.
+- Add all new i18n keys to `src/locales/en.json` under a new `auth` section:
+  - `auth.toggle`
+  - `auth.dialogTitle`
+  - `auth.tokenLabel`
+  - `auth.tokenHelp`
+  - `auth.save`
+  - `auth.clear`
+  - `auth.statusAuthenticated` ("Authenticated")
+  - `auth.statusUnauthenticated` ("No token configured")
+- All strings rendered via `t()`. No hardcoded literals.
+
+**Files:**
+- `src/App.vue` (modify — add auth button + dialog)
+- `src/locales/en.json` (modify — add `auth` section)
+
+**Acceptance criteria:**
+- Clicking the shield icon opens the dialog pre-populated with the current token (if any).
+- After saving a non-empty value, the icon switches to the locked variant and subsequent API requests include the header.
+- After clearing, the icon switches back and no `Authorization` header is sent.
+- The token survives a page reload (via `localStorage`).
+- `npm run lint` and `npx vue-tsc --noEmit` pass.
+
+### Step 5: Unit tests for the auth composable and the API-client wiring
+Add Vitest unit tests covering both the composable and the resolver integration. Use the existing test infrastructure (`vitest.config.ts`, `src/test-setup.ts`).
+
+**Requirements:**
+- `src/composables/__tests__/useAuth.spec.ts` (new):
+  - Setup: reset `localStorage` and the module's internal `ref` between tests (re-import the module via `vi.resetModules()` in a `beforeEach`, or expose a test-only `__resetForTests` helper — prefer `vi.resetModules()`).
+  - Tests (use `it.each` where the assertions are uniform):
+    - `setToken` stores a non-empty token in `localStorage` under `fdsc-dashboard-auth-token`.
+    - `setToken('')` removes the key from `localStorage`.
+    - `clearToken()` is equivalent to `setToken('')`.
+    - `setToken('  abc  ')` trims whitespace.
+    - `isAuthenticated` is `true` iff token is non-empty.
+    - `initAuth()` restores a token persisted in `localStorage`.
+    - `initAuth()` falls back to `import.meta.env.VITE_AUTH_TOKEN` when `localStorage` is empty. Stub via `vi.stubEnv('VITE_AUTH_TOKEN', 'env.jwt.value')`.
+    - `initAuth()` prefers `localStorage` over the env var when both are set.
+    - `getAuthTokenSync()` returns the current token synchronously (no promise).
+- `src/api/__tests__/config.spec.ts` (new):
+  - Mock `@/composables/useAuth` so `getAuthTokenSync` returns a controllable value.
+  - After calling `configureApiClients()`, assert that `TilOpenAPI.TOKEN`, `TirOpenAPI.TOKEN`, `CcsOpenAPI.TOKEN`, and `OdrlOpenAPI.TOKEN` are all set to the **same function reference**.
+  - Invoke the resolver: when `getAuthTokenSync` returns `'abc'`, the resolver resolves to `'abc'`; when it returns `''`, the resolver resolves to `''`.
+  - Assert that each client's `BASE` is set from the corresponding `VITE_*_API_URL` (stub with `vi.stubEnv`) or the default proxy prefix.
+- Use `it.each` for the four parallel `OpenAPI` client assertions (`[['til', TilOpenAPI], ['tir', TirOpenAPI], ['ccs', CcsOpenAPI], ['odrl', OdrlOpenAPI]]`).
+- Every test file includes JSDoc at the top describing what it covers.
+
+**Files:**
+- `src/composables/__tests__/useAuth.spec.ts` (new)
+- `src/api/__tests__/config.spec.ts` (new)
+
+**Acceptance criteria:**
+- `npm run test` passes all new tests alongside the existing suite.
+- No real network requests are made (generated clients are imported but never invoked).
+- Each behavior above has at least one assertion.
+- Parameterized (`it.each`) tests are used where test cases are structurally identical.
+
+### Step 6: Document the feature and finalize lint/type-check/build
+Update the README and CLAUDE.md so future contributors know how auth works, then run the full quality gate.
+
+**Requirements:**
+- `README.md`: add a new top-level **Authentication** section after "Running with Docker Compose (Mock Backends)". Contents:
+  - Describe the `VITE_AUTH_TOKEN` build-time env var (same table format used for the API URL vars).
+  - Describe the runtime dialog in the app bar (locked vs unlocked shield icons).
+  - Note that the token is persisted in `localStorage` under the key `fdsc-dashboard-auth-token` and that setting an empty value clears it.
+  - Note that all four backend clients (TIL, TIR, CCS, ODRL) include the header when a token is present, and no `Authorization` header is sent otherwise.
+- `CLAUDE.md`: append `useAuth.ts` to the `composables/` tree and add a one-line "Auth token is propagated to all generated API clients via `configureApiClients`" bullet under **Key Conventions**.
+- Run and ensure all of the following pass with zero errors:
+  - `npm run lint`
+  - `npx vue-tsc --noEmit`
+  - `npm run test`
+  - `npm run build`
+
+**Files:**
+- `README.md` (modify)
+- `CLAUDE.md` (modify)
+- Any files with lint or type errors surfaced during the final pass.
+
+**Acceptance criteria:**
+- `npm run lint` exits 0.
+- `npx vue-tsc --noEmit` exits 0.
+- `npm run test` exits 0 with all suites green.
+- `npm run build` completes successfully.
+- README clearly explains how to configure, use, and clear a JWT.
+- No hardcoded user-facing strings were introduced; every new user-facing string is keyed under `auth.*` in `en.json`.
