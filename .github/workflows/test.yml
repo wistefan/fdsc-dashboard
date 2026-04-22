@@ -27,7 +27,8 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
 
       - name: Generate API clients
         # The OpenAPI-derived clients are generated at build-time; `npm run build`

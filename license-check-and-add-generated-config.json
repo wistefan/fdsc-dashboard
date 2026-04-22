@@ -1,0 +1,46 @@
+{
+  "license": "scripts/license-header.txt",
+  "trailingWhitespace": "TRIM",
+  "ignore": [
+    ".github/**",
+    "mocks/**",
+    "public/**",
+    "scripts/**",
+    "specs/**",
+    "src/App.vue",
+    "src/main.ts",
+    "src/vite-env.d.ts",
+    "src/api/config.ts",
+    "src/composables/**",
+    "src/plugins/**",
+    "src/router/**",
+    "src/stores/**",
+    "src/views/**",
+    "src/locales/**",
+    "**/*.md",
+    "**/*.html",
+    "**/*.yml",
+    "**/*.yaml",
+    "**/*.conf",
+    "**/*.env",
+    "**/*.cjs",
+    "**/*.mjs",
+    "**/*.js",
+    ".eslintignore",
+    ".gitignore",
+    ".prettierrc",
+    "Dockerfile",
+    "vite.config.ts",
+    "tsconfig.json",
+    "tsconfig.node.json"
+  ],
+  "licenseFormats": {
+    "ts|vue": {
+      "prepend": "/*",
+      "append": " */",
+      "eachLine": {
+        "prepend": " * "
+      }
+    }
+  }
+}

@@ -11,6 +11,8 @@
     "format": "prettier --write src/",
     "download:specs": "bash scripts/download-specs.sh",
     "generate:api": "bash scripts/generate-api-clients.sh",
+    "license:check": "license-check-and-add check -f license-check-and-add-config.json",
+    "license:apply": "license-check-and-add add -f license-check-and-add-config.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -30,6 +32,7 @@
     "@vue/test-utils": "^2.4.6",
     "eslint": "^8.57.0",
     "eslint-plugin-vue": "^9.23.0",
+    "license-check-and-add": "^4.0.5",
     "jsdom": "^29.0.1",
     "openapi-typescript-codegen": "^0.30.0",
     "prettier": "^3.2.5",

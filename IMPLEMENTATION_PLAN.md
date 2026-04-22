@@ -1,187 +1,182 @@
-# Implementation Plan: Dashboard OAuth2 Authentication (Ticket #10)
+# Implementation Plan: Add copyright header to all code
 
 ## Overview
+Introduce a repo-wide Apache 2.0 copyright header, adopt the off-the-shelf
+[`license-check-and-add`](https://www.npmjs.com/package/license-check-and-add) npm
+package to both verify and insert the header across in-scope source files, expose the
+two operations through npm scripts, run the tool once to backfill existing files, and
+enforce the check on every push / pull request through a GitHub Actions workflow.
 
-Add optional OAuth2 / OpenID Connect authentication to the FDSC Dashboard with
-the following behaviour:
+Rationale for the library choice: `license-check-and-add` is a mature, widely-used
+(>600k weekly downloads), zero-config-by-default CLI that supports both `check` and
+`add` modes, per-extension comment wrappers, glob-based include/exclude, and is
+idempotent out of the box. Picking an existing plugin keeps the surface area minimal,
+avoids us maintaining custom glob/comment logic, and matches the reviewer's guidance
+("isn't there a library or plugin that can be directly used for the license
+headers?"). Alternatives considered and rejected:
+- `eslint-plugin-license-header` — couples header enforcement to ESLint, which already
+  has its own ignore list (`.eslintignore`) and would leak license logic into every
+  `lint` invocation; also only covers JS/TS, not `.vue` SFCs out of the box.
+- A hand-rolled Node script — rejected as duplicate work per review feedback.
 
-- If no OAuth2 provider is configured, the dashboard operates exactly as today
-  (no sign-in required, no guards, no user menu).
-- Operators can configure **one or more** OAuth2 providers. When at least one
-  provider is configured, users must authenticate before using the dashboard.
-- Two roles are supported:
-  - `viewer` — read-only access to all endpoints (no create / edit / delete).
-  - `admin` — full access to all functionality.
-- Configuration is injected at runtime (via nginx env-var templating into a
-  `window.__AUTH_CONFIG__` global) and can also be provided at build time via
-  `VITE_AUTH_*` environment variables for local development.
+The canonical header text is the exact block from the Taiga ticket (Copyright 2026
+Seamless Middleware Technologies S.L. and/or its affiliates, Apache License 2.0).
 
-The design follows the project's established conventions:
-- JSDoc on every exported symbol.
-- No magic constants — named constants live in dedicated `constants.ts` files.
-- Errors bubble up through Pinia stores with `ApiError`-style handling where
-  applicable.
-- Every user-facing string goes through Vue I18n.
-- Each step is independently mergeable, reviewable, and tested.
-
-## Terminology
-
-- **Provider** — a configured OAuth2 / OIDC Identity Provider (e.g. Keycloak).
-  Each provider has an `id`, `displayName`, `issuer`, `clientId`, `scopes`, and
-  an optional `rolesClaimPath` for extracting the user's role from the token.
-- **Auth enabled** — at least one provider is configured.
-- **User** — the authenticated subject with a `subject`, `name`, `email`,
-  `roles`, `providerId`.
+**Scope of files covered** (under `src/`):
+- `*.ts` and `*.vue` — header applied as `/* … */` block comment at the top of the
+  file (`license-check-and-add` wraps the raw header text per-extension).
+- `src/locales/*.json` — **excluded** (JSON disallows comments).
+- `src/api/generated/**` — **excluded by default** because the directory is regenerated
+  from upstream OpenAPI specs by `scripts/generate-api-clients.sh`; Step 5 wires the
+  `add` step into that script so regenerated files still receive the header.
+- Outside `src/`: config files (`vite.config.ts`, `tsconfig*.json`, `scripts/*.sh`,
+  `Dockerfile`, `mocks/**`) are out of scope per the ticket wording ("All src files").
 
 ## Steps
 
-### Step 1: Auth configuration types and runtime loader
+### Step 1: Add license header template and wire up `license-check-and-add`
+Install the library and write its configuration; no custom logic is needed.
 
-Lay the groundwork for the whole feature by defining the authentication data
-model and a runtime configuration loader.
+**Files to add:**
+- `scripts/license-header.txt` — the exact header **body** from the ticket, without
+  comment delimiters (`license-check-and-add` prepends `/*` / ` * ` / ` */` per
+  extension via its `licenseFormats` config). Stored once so the config and any
+  future docs stay in sync.
+- `license-check-and-add-config.json` (repo root, passed explicitly via `-f` from
+  the npm scripts) — uses the fields actually defined by
+  [`license-check-and-add`'s config schema](https://github.com/awjh/license-check-and-add/blob/master/config-schema.json):
+  - `"license"`: path to `scripts/license-header.txt`.
+  - `"trailingWhitespace"`: `"TRIM"` (strip trailing whitespace so blank license
+    lines become ` *` rather than ` * `, and idempotent insertion/check matches).
+  - `"ignore"`: globby-style patterns that narrow the tool — which otherwise walks
+    `**/*` — down to only `src/**/*.{ts,vue}`. The library's `DEFAULT_IGNORES`
+    already skip `node_modules`, `dist`, `.git`, and `**/*.json`, so our list
+    adds the repo-specific directories to skip (`.github/**`, `mocks/**`,
+    `public/**`, `scripts/**`, `src/api/generated/**`, `src/locales/**`) and
+    every non-`.ts`/`.vue` extension present in the repo (`**/*.md`, `**/*.html`,
+    `**/*.yml`, `**/*.yaml`, `**/*.conf`, `**/*.env`, `**/*.cjs`, `**/*.mjs`,
+    `**/*.js`), plus a handful of extensionless config files at the root
+    (`.eslintignore`, `.gitignore`, `.prettierrc`, `Dockerfile`) and the
+    out-of-scope root `.ts`/JSON config files (`vite.config.ts`, `tsconfig.json`,
+    `tsconfig.node.json`).
+  - `"licenseFormats"`: one entry `"ts|vue"` →
+    `{ "prepend": "/*", "append": " */", "eachLine": { "prepend": " * " } }`.
+    The library prepends the formatted block before `<template>` / `<script>` in
+    SFCs, which Vue's compiler accepts.
 
-**Files (new):**
-- `src/auth/constants.ts` — role identifiers, default OAuth2 scopes, storage
-  keys, and the name of the runtime-config global.
-- `src/auth/types.ts` — `Role`, `OAuthProviderConfig`, `AuthConfig`,
-  `AuthenticatedUser` TypeScript types.
-- `src/auth/config.ts` — `loadAuthConfig()`, `isAuthEnabled()`, and
-  `getProviderById()` helpers. Reads config from
-  `window.__AUTH_CONFIG__` (runtime) with a fallback to `VITE_AUTH_PROVIDERS`
-  (build-time JSON string) for local development.
-- `src/auth/__tests__/config.spec.ts` — parameterised unit tests covering:
-  empty config → disabled, malformed JSON → disabled with logged warning,
-  single provider, multiple providers, fallback to `DEFAULT_OAUTH_SCOPES`
-  when scopes are omitted.
-- `src/vite-env.d.ts` — extend with `VITE_AUTH_PROVIDERS` typing and the
-  `window.__AUTH_CONFIG__` global declaration.
+**Field-name note:** the plan previously referred to `exact_paths_method`,
+`file_types`, `license_formats`, and `trailing_whitespace` — those are not part of
+the `license-check-and-add@4.x` schema. The real fields are `ignore`,
+`licenseFormats`, and `trailingWhitespace`, and there is no explicit
+include-by-extension option (narrowing happens entirely via `ignore`).
 
-**Acceptance criteria:**
-- `loadAuthConfig()` returns a deterministic `AuthConfig` object.
-- `isAuthEnabled(config)` returns `false` for an empty provider list and
-  `true` otherwise.
-- `DEFAULT_OAUTH_SCOPES = ['openid', 'profile']` (no `email` — data
-  minimisation).
-- All new symbols carry JSDoc.
-- `npm run test` passes.
-- `npm run lint` and `npx vue-tsc --noEmit` pass.
-
-### Step 2: OIDC client wrapper (oidc-client-ts integration)
-
-Add `oidc-client-ts` and expose a thin per-provider facade the store can call.
-
-**Files:**
-- `package.json` — add `oidc-client-ts` runtime dependency.
-- `src/auth/oidcClient.ts` — `createUserManager(provider)`, plus
-  `signinRedirect`, `signinRedirectCallback`, `signoutRedirect`,
-  `getUser`, `removeUser` helpers. PKCE authorisation-code flow.
-  Uses `sessionStorage` for state and a dedicated storage key per provider.
-- `src/auth/__tests__/oidcClient.spec.ts` — unit tests that mock
-  `oidc-client-ts` and verify the UserManager is constructed with the correct
-  `authority`, `client_id`, `redirect_uri`, `response_type`, and `scope`.
+**Files to modify:**
+- `package.json` — add `license-check-and-add` (latest stable, currently `^4.x`) to
+  `devDependencies`. No runtime deps change.
+- `package-lock.json` — regenerated by `npm install`.
 
 **Acceptance criteria:**
-- UserManager settings derive from `OAuthProviderConfig` with no duplication.
-- Redirect URI is built from `window.location.origin` and the callback
-  route so it works in dev, preview, and production.
-- Silent renew is wired up when the provider config sets `silentRenew: true`.
+- `npx license-check-and-add check -f license-check-and-add-config.json` runs on a
+  fresh clone and reports every in-scope file as missing the header (pre-Step 3
+  state), exiting non-zero.
+- `npx license-check-and-add add -f license-check-and-add-config.json` run twice in
+  a row leaves the tree unchanged on the second invocation (library is idempotent).
+- `scripts/license-header.txt` matches the ticket description character-for-character
+  (copyright year `2026`, entity `Seamless Middleware Technologies S.L and/or its
+  affiliates`, Apache 2.0 URL).
 
-### Step 3: Auth Pinia store
+### Step 2: Wire npm scripts into `package.json`
+Expose the tool through the project's standard entry point so contributors and CI
+invoke it identically without remembering the CLI flags.
 
-Create `src/stores/auth.ts` with the runtime auth state plus actions.
-
-**State:** `config` (from Step 1), `user` (`AuthenticatedUser | null`),
-`activeProviderId`, `status` (`idle` | `authenticating` | `authenticated` |
-`error`), `error`.
-
-**Getters:** `isAuthEnabled`, `isAuthenticated`, `isAdmin`, `isViewer`,
-`providers` (list for the login picker).
-
-**Actions:** `init()` (read from storage, restore session), `login(providerId)`,
-`handleCallback(providerId, url)`, `logout()`, `$reset()`.
-
-**Role extraction:** follow the provider's `rolesClaimPath` (defaults to
-`realm_access.roles` — Keycloak style), map to the canonical `Role` enum,
-and fall back to `viewer` when no matching role is found.
-
-**Files:**
-- `src/stores/auth.ts` (new).
-- `src/stores/__tests__/auth.spec.ts` (new) — covers init from stored user,
-  login redirect, callback success / failure, logout, role mapping.
-
-### Step 4: Login view, callback view, router guard
-
-**Files:**
-- `src/views/auth/LoginView.vue` — lists configured providers as
-  "Sign in with &lt;provider&gt;" buttons. Auto-redirects when exactly one
-  provider is configured and the user is already authenticated.
-- `src/views/auth/CallbackView.vue` — three-state rendering (loading, error
-  with retry, success → redirect to `returnTo` or `/`). Calls
-  `store.handleCallback()` on mount.
-- `src/router/index.ts` — add `/login` and `/callback/:providerId` routes.
-  Install a `beforeEach` guard that, when `isAuthEnabled`, requires
-  `isAuthenticated` for every route except the login/callback pair, and
-  preserves `returnTo`.
+**Files to modify:**
+- `package.json` — add under `"scripts"`:
+  - `"license:check": "license-check-and-add check -f license-check-and-add-config.json"`
+  - `"license:apply": "license-check-and-add add -f license-check-and-add-config.json"`
+- Keep existing scripts untouched; do not re-sort keys (match current style).
 
 **Acceptance criteria:**
-- With no providers configured, no redirects happen, no guard interferes.
-- With providers configured, an unauthenticated user is sent to `/login`
-  preserving the target route.
-- Logout returns the user to `/login` and clears storage.
+- `npm run license:check` and `npm run license:apply` execute the library successfully.
+- `package.json` remains valid JSON; the only new dependency is the devDependency
+  added in Step 1.
 
-### Step 5: RBAC — role-based UI gating
+### Step 3: Apply the header to all existing in-scope source files
+One-shot bulk application so the repository is compliant going forward.
 
-**Files:**
-- `src/composables/useAuth.ts` — `isAdmin`, `isViewer`, `canEdit`, `canDelete`
-  reactive helpers that return `true` when auth is disabled (backwards compat).
-- `src/views/til/TilListView.vue`, `CcsListView.vue`, `PolicyListView.vue` —
-  hide the "Create" button when `!canEdit`.
-- `src/views/til/TilDetailView.vue`, `CcsDetailView.vue`, `PolicyDetailView.vue`
-  — hide Edit/Delete actions when `!canEdit` / `!canDelete`.
-- `src/views/til/TilFormView.vue`, `CcsFormView.vue`, `PolicyFormView.vue` —
-  the route guard blocks viewer access to these, but add a defensive redirect
-  in the component as well.
+**Procedure:**
+- Run `npm run license:apply` from the repo root.
+- Commit the resulting changes as a single "chore: add copyright headers" commit.
 
-**Acceptance criteria:**
-- Viewer cannot see or navigate to create/edit/delete controls.
-- Admin sees the current full UI.
-- Auth-disabled mode preserves today's behaviour exactly.
-
-### Step 6: App bar integration & i18n
-
-**Files:**
-- `src/App.vue` — add a user menu showing the user's name, provider, role, and
-  a Logout item. Hidden when auth is disabled.
-- `src/views/auth/LoginView.vue` — picks up i18n strings.
-- `src/locales/en.json` — new `auth` section with `signIn`, `signInWith`,
-  `signOut`, `role`, `viewer`, `admin`, `provider`, `loginRequired`,
-  `callbackFailed`, `callbackRetry`, etc.
-
-### Step 7: Runtime configuration templating
-
-**Files:**
-- `public/config.template.js` — `window.__AUTH_CONFIG__ = ${AUTH_CONFIG_JSON};`
-  placeholder template.
-- `Dockerfile` — add an entrypoint that runs `envsubst` (or a small shell
-  script) to materialise `/usr/share/nginx/html/config.js` from the template
-  at container start.
-- `index.html` — `<script src="/config.js"></script>` before the bundle.
-- `README.md` — document the `AUTH_CONFIG_JSON` env var, the expected JSON
-  shape, and an example Keycloak configuration.
+**Files affected (expected, as of `main`):**
+- `src/App.vue`
+- `src/main.ts`
+- `src/vite-env.d.ts`
+- `src/api/config.ts`
+- `src/composables/useLocale.ts`, `src/composables/useTheme.ts`
+- `src/plugins/i18n.ts`, `src/plugins/vuetify.ts`
+- `src/router/index.ts`
+- `src/stores/index.ts`, `src/stores/til.ts`
+- `src/views/HomeView.vue`
+- `src/views/ccs/CcsListView.vue`, `src/views/ccs/CcsDetailView.vue`
+- `src/views/policies/PolicyListView.vue`, `src/views/policies/PolicyDetailView.vue`
+- `src/views/til/TilListView.vue`, `src/views/til/TilDetailView.vue`
 
 **Acceptance criteria:**
-- `docker run -e AUTH_CONFIG_JSON='{"providers":[...]}' fdsc-dashboard`
-  activates auth without rebuilding the image.
-- Omitting the env var leaves `providers: []` → auth disabled.
+- `npm run license:check` exits `0` after this step.
+- `npm run build` still succeeds (headers do not break Vue SFC parsing or TS compile).
+- `npm run lint` passes; if ESLint flags the block comment anywhere, update
+  `.eslintrc.cjs` (no rule against file-top block comments is active in the current
+  config, so no change is expected).
 
-### Step 8: Tests, documentation, and polish
+### Step 4: Add GitHub Actions workflow to enforce the header in CI
+Block pull requests that introduce unlicensed files.
 
-**Files:**
-- `src/views/__tests__/LoginView.spec.ts`, `CallbackView.spec.ts` — component
-  tests covering the three render states and navigation.
-- `src/router/__tests__/guards.spec.ts` — guard tests with a mocked store.
-- `README.md` — a dedicated "Authentication" section with the Keycloak
-  example realm config.
-- `src/locales/en.json` — i18n completeness pass.
-- Run `npm run lint`, `npx vue-tsc --noEmit`, `npm run build`, `npm run test`
-  — all must pass with zero errors.
+**Files to add:**
+- `.github/workflows/license-check.yml` — trigger on `push` to `main` and on every
+  `pull_request`. Single job `license-check` running on `ubuntu-latest`:
+  1. `actions/checkout@v4`
+  2. `actions/setup-node@v4` with `node-version: '20'` and `cache: 'npm'`
+  3. `npm ci`
+  4. `npm run license:check`
+
+**Acceptance criteria:**
+- The workflow is syntactically valid (parses with the GitHub workflow parser).
+- When run against `main` post-Step 3, the workflow succeeds.
+- Intentionally removing the header from any in-scope file causes the workflow to
+  fail with a clear message naming the offending file(s) (default
+  `license-check-and-add` output).
+
+### Step 5: Wire the apply step into the API-client generator and update docs
+Ensure regenerated and newly added files remain compliant, and tell contributors how
+the mechanism works.
+
+**Files to modify:**
+- `scripts/generate-api-clients.sh` — at the end of the script (after the existing
+  "post-generation fixes" section and before the final success echo), invoke the
+  library scoped to the regenerated tree. Because `license-check-and-add@4.x`
+  exposes no CLI override for the config's `ignore` list, use a second
+  purpose-built config file (added by this step, e.g.
+  `license-check-and-add-generated-config.json` at the repo root) whose `ignore`
+  list skips everything *except* `src/api/generated/**` and whose `licenseFormats`
+  matches the primary config. Invoke it as:
+  ```sh
+  npx license-check-and-add add \
+    -f "${PROJECT_ROOT}/license-check-and-add-generated-config.json"
+  ```
+  Document the reason in a short comment block. This keeps
+  `src/api/generated/**` excluded from the default check/apply but guarantees
+  headers exist after regeneration.
+- `README.md` — add a new short section "License headers" under "Available Scripts"
+  that:
+  - Lists the two npm scripts and what they do.
+  - Names the underlying library (`license-check-and-add`) so contributors can look
+    up advanced options.
+  - States that CI runs `npm run license:check` on every PR.
+  - Explains the default include/exclude globs and how to add a header to new files
+    (`npm run license:apply`).
+
+**Acceptance criteria:**
+- Running `npm run generate:api` leaves every file under `src/api/generated/**`
+  containing the header (idempotent on repeat runs).
+- `README.md` renders cleanly on GitHub and documents both scripts plus the CI guard.
+- `npm run license:check` still exits `0` after Steps 3–5 combined.
