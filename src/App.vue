@@ -210,12 +210,14 @@ import { useLocale } from '@/composables/useLocale'
 import { useAuth } from '@/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { ROLE_ADMIN, ROLE_VIEWER } from '@/auth/constants'
+import { useAuth } from '@/composables/useAuth'
 
 const { t } = useI18n()
 const { isDark, toggleTheme, initTheme } = useTheme()
 const { initLocale } = useLocale()
 const { token, isAuthenticated, isAuthEnabled, setToken, clearToken, initAuth } = useAuth()
 const authStore = useAuthStore()
+const { initAuth } = useAuth()
 
 /**
  * Reactive auth state exposed to the template.
