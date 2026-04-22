@@ -21,8 +21,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          rm -rf package-lock.json
-          npm install
           npm ci
 
       - name: Verify license headers
