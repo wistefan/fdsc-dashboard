@@ -15,6 +15,12 @@ interface ImportMetaEnv {
   readonly VITE_CCS_API_URL: string
   /** Base URL for the ODRL-PAP API. */
   readonly VITE_ODRL_API_URL: string
+  /**
+   * Optional build-time seed for the JWT sent as `Authorization: Bearer …`
+   * on every API request. When set, the value is loaded at startup unless a
+   * user-provided token is already persisted in `localStorage`.
+   */
+  readonly VITE_AUTH_TOKEN?: string
 }
 
 interface ImportMeta {
