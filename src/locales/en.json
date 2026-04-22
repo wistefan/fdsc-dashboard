@@ -69,6 +69,16 @@
     "switch": "Language",
     "en": "English"
   },
+  "auth": {
+    "toggle": "Authentication token",
+    "dialogTitle": "Authentication Token",
+    "tokenLabel": "JWT",
+    "tokenHelp": "Paste a JWT. It will be sent as `Authorization: Bearer …` on all API calls and persisted in your browser.",
+    "save": "Save",
+    "clear": "Clear",
+    "statusAuthenticated": "Authenticated",
+    "statusUnauthenticated": "No token configured"
+  },
   "til": {
     "title": "Trusted Issuers List",
     "listTitle": "Trusted Issuers",
