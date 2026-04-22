@@ -64,15 +64,20 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTheme } from '@/composables/useTheme'
 import { useLocale } from '@/composables/useLocale'
+import { useAuth } from '@/composables/useAuth'
 
 const { t } = useI18n()
 const { isDark, toggleTheme, initTheme } = useTheme()
 const { initLocale } = useLocale()
+const { initAuth } = useAuth()
 
 /** Controls the visibility of the navigation drawer. */
 const drawer = ref(true)
 
 onMounted(() => {
+  // Load the auth token first so any early consumers (e.g. API-client token
+  // resolvers or future route guards) observe the persisted value.
+  initAuth()
   initTheme()
   initLocale()
 })
