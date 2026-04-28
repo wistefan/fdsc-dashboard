@@ -34,6 +34,14 @@ const DEFAULT_CCS_URL = 'http://localhost:8082'
 /** Default target URL for the ODRL Policy backend in direct proxy mode. */
 const DEFAULT_ODRL_URL = 'http://localhost:8083'
 
+/**
+ * Default upstream URL for the Apache APISIX Dashboard.
+ *
+ * Port 9000 is the standard port the Apisix Dashboard Docker image
+ * exposes. Override at dev-time via `VITE_APISIX_DASHBOARD_URL`.
+ */
+const DEFAULT_APISIX_URL = 'http://localhost:9000'
+
 /** Maps each downstream service to its VITE_ environment variable name. */
 const SERVICE_ENV_VARS = {
   til: 'VITE_TIL_API_URL',
@@ -114,6 +122,11 @@ function buildProxyConfig(): Record<string, object> {
         target: BFF_URL,
         changeOrigin: true,
       },
+      '/apisix-dashboard': {
+        target: BFF_URL,
+        changeOrigin: true,
+        ws: true,
+      },
     }
   }
 
@@ -146,6 +159,12 @@ function buildProxyConfig(): Record<string, object> {
       changeOrigin: true,
       rewrite: (path: string) => path.replace(/^\/api\/odrl/, ''),
     }
+  }
+
+  config['/apisix-dashboard'] = {
+    target: process.env.VITE_APISIX_DASHBOARD_URL || DEFAULT_APISIX_URL,
+    changeOrigin: true,
+    ws: true,
   }
 
   return config
