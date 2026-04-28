@@ -413,11 +413,10 @@ quality gate.
      session — Apisix Dashboard authenticates **directly** with the OIDC
      IdP in its own redirect flow. (This avoids the security pitfall of
      injecting a dashboard-issued token into a third-party app.)
-- `CLAUDE.md` — add `apisix/` and `views/apisix/` to the **Project
-  Structure** tree, add `useApisix.ts` to the `composables/` tree, and
-  add a one-line bullet under **Key Conventions** noting that the
-  Apisix Dashboard is embedded via a same-origin reverse proxy at
-  `/apisix-dashboard/`.
+- ~~`CLAUDE.md`~~ — **Skipped.** `CLAUDE.md` is appended to the system
+  prompt and cached across agent sessions; editing it invalidates the
+  cached prefix for every subsequent chained session. The project
+  structure and conventions are already documented in `README.md`.
 
 **Files affected by the quality gate (any that need fixes):** TBD —
 likely none new.
