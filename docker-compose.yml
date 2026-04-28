@@ -5,6 +5,16 @@ services:
     build: .
     ports:
       - "8080:80"
+    # Runtime API URL configuration (optional).
+    # When set, these override the default nginx proxy paths (/api/<service>).
+    # When unset or empty, the dashboard uses the nginx reverse-proxy routes
+    # defined in the nginx config, which is the correct setup for this
+    # docker-compose stack where mock backends are on the internal network.
+    # environment:
+    #   TIL_API_URL: http://custom-til:8080
+    #   TIR_API_URL: http://custom-tir:8080
+    #   CCS_API_URL: http://custom-ccs:8080
+    #   ODRL_API_URL: http://custom-odrl:8080
     volumes:
       - ./nginx-docker-compose.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
