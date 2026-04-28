@@ -43,7 +43,7 @@ server proxies them to downstream services on a private network.
 
 ## Running with Docker Compose (Mock Backends)
 
-The project includes mock backend services that return empty collections so the UI can render without real services running. Docker Compose mounts a dedicated nginx config (`nginx-docker-compose.conf`) that routes API requests to the mock service containers.
+The project includes mock backend services that return empty collections so the UI can render without real services running. Docker Compose starts the BFF server alongside lightweight nginx-based mock backends that serve static JSON responses.
 
 ```bash
 # Build and start the dashboard with mock backends
@@ -156,10 +156,13 @@ The Vitest configuration is defined in `vitest.config.ts` at the project root. I
 | `npm run dev`           | Start the Vite dev server with HMR                      |
 | `npm run build`         | Type-check and build for production                     |
 | `npm run preview`       | Preview the production build locally                    |
-| `npm run test`          | Run all unit tests once                                 |
-| `npm run test:watch`    | Run unit tests in watch mode                            |
+| `npm run test`          | Run all frontend unit tests once                        |
+| `npm run test:watch`    | Run frontend unit tests in watch mode                   |
 | `npm run lint`          | Lint source files with ESLint (auto-fix)                |
 | `npm run format`        | Format source files with Prettier                       |
+| `npm run bff:dev`       | Start the BFF server in dev mode (tsx watch)            |
+| `npm run bff:build`     | Build the BFF server (TypeScript → JavaScript)          |
+| `npm run bff:test`      | Run BFF server tests                                    |
 | `npm run license:check` | Verify every in-scope source file has a license header  |
 | `npm run license:apply` | Prepend the Apache 2.0 license header to any file that is missing it |
 
@@ -294,10 +297,12 @@ Build a standalone Docker image:
 
 ```bash
 docker build -t fdsc-dashboard .
-docker run -p 8080:80 fdsc-dashboard
+docker run -p 8080:3000 fdsc-dashboard
 ```
 
-The image uses a multi-stage build (Node 20 for building, nginx for serving).
+The image uses a multi-stage build: Node 20 builds the frontend SPA and the BFF
+server, then a slim Node.js runtime image serves the SPA and proxies API requests
+via the Express BFF (see `server/`).
 
 ## Authentication (OAuth2 / OpenID Connect)
 
@@ -353,7 +358,7 @@ that matches the `AuthConfig` shape declared in `src/auth/types.ts`:
 Launch an image with authentication enabled:
 
 ```bash
-docker run -p 8080:80 \
+docker run -p 8080:3000 \
   -e AUTH_CONFIG_JSON='{"providers":[{"id":"keycloak","displayName":"Keycloak","issuer":"https://keycloak.example.com/realms/fdsc","clientId":"fdsc-dashboard","roleMapping":{"fdsc-admin":"admin","fdsc-viewer":"viewer"}}]}' \
   fdsc-dashboard
 ```
@@ -363,27 +368,25 @@ If `AUTH_CONFIG_JSON` is **unset or empty**, the entrypoint falls back to
 
 #### How it works
 
-1. `public/config.template.js` contains the line
-   `window.__AUTH_CONFIG__ = ${AUTH_CONFIG_JSON};`.
-2. The image's nginx entrypoint runs
-   `scripts/docker-entrypoint.d/10-render-config.sh`, which uses
-   `envsubst` to substitute `AUTH_CONFIG_JSON` and writes the result to
-   `/usr/share/nginx/html/config.js`. The unsubstituted template is then
-   deleted so it is never served.
+1. The BFF Express server reads `AUTH_CONFIG_JSON` from the environment at
+   startup (see `server/src/runtime-config.ts`).
+2. When the browser requests `GET /config.js`, the BFF responds with
+   `window.__AUTH_CONFIG__ = <AUTH_CONFIG_JSON>;` as dynamically generated
+   JavaScript.
 3. `index.html` loads `/config.js` **before** the application bundle, so
    `window.__AUTH_CONFIG__` is populated by the time
    `src/auth/config.ts#loadAuthConfig()` reads it.
 
-Because the substitution happens at container start, operators can enable,
+Because the configuration is served dynamically, operators can enable,
 disable, or re-configure OAuth2 without rebuilding the image — just supply
 a different value for `AUTH_CONFIG_JSON` (for example via Kubernetes
 `env` / `envFrom`, Docker Compose, or `docker run -e`).
 
 ### Build-time fallback for local development
 
-For local `npm run dev` there is no nginx, so the runtime templating step
-does not run. Contributors can instead set the Vite environment variable
-`VITE_AUTH_PROVIDERS` to the same JSON payload:
+For local `npm run dev` the BFF server is not running by default, so the
+`/config.js` endpoint is not available. Contributors can instead set the
+Vite environment variable `VITE_AUTH_PROVIDERS` to the same JSON payload:
 
 ```bash
 VITE_AUTH_PROVIDERS='{"providers":[{"id":"keycloak", ... }]}' npm run dev
@@ -409,25 +412,40 @@ to `VITE_AUTH_PROVIDERS`, otherwise disables auth.
 ## Project Structure
 
 ```
-src/
-  App.vue              # Root component with navigation drawer
-  main.ts              # Application entry point
-  router/index.ts      # Route definitions
-  stores/index.ts      # Pinia store setup
-    __tests__/           # Unit tests for stores
+src/                         # Frontend (Vue 3 SPA)
+  App.vue                    # Root component with navigation drawer
+  main.ts                    # Application entry point
+  router/index.ts            # Route definitions
+  stores/                    # Pinia stores (til.ts, ccs.ts, policies.ts, auth.ts)
+    __tests__/               # Unit tests for stores
   plugins/
-    vuetify.ts         # Vuetify configuration and theming
-    i18n.ts            # Vue I18n setup
+    vuetify.ts               # Vuetify configuration and theming
+    i18n.ts                  # Vue I18n setup
   locales/
-    en.json            # English translations
+    en.json                  # English translations
   composables/
-    useTheme.ts        # Theme toggle composable
+    useTheme.ts              # Theme toggle composable
+    useLocale.ts             # Locale switching
+    useAuth.ts               # Auth composable (OAuth2/OIDC + token modes)
+  api/
+    config.ts                # Wires generated clients to /api/<service> paths
+    generated/               # AUTO-GENERATED by scripts/generate-api-clients.sh
   views/
-    HomeView.vue       # Landing page
-    til/               # Trusted Issuers List views
-    ccs/               # Credentials Config Service views
-    policies/          # ODRL Policy views
-mocks/                 # Mock backend data and nginx configs
+    HomeView.vue             # Landing page
+    til/                     # Trusted Issuers List views
+    ccs/                     # Credentials Config Service views
+    policies/                # ODRL Policy views
+server/                      # BFF (Backend-for-Frontend) Express server
+  src/
+    index.ts                 # Express app entry point
+    config.ts                # Env var configuration
+    proxy.ts                 # Proxy middleware for downstream services
+    health.ts                # Health check endpoint
+    static.ts                # Static file serving + SPA fallback
+    runtime-config.ts        # /config.js endpoint for auth config
+    __tests__/               # BFF server tests
+mocks/                       # Mock backend data and nginx configs
+scripts/                     # Build and code generation scripts
 ```
 
 ## Theming

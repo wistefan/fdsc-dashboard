@@ -1,7 +1,7 @@
 dist
 node_modules
 src/api/generated
-# Runtime-rendered auth configuration files live in /public and are not
-# valid JavaScript until processed by the nginx entrypoint (envsubst).
-public/config.template.js
+# Runtime auth configuration is served dynamically by the BFF server
+# (see server/src/runtime-config.ts). Exclude the generated JS file
+# that may be present in public/ during local development.
 public/config.js
