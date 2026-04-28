@@ -21,7 +21,7 @@ Two patterns were considered:
 
 | Option | How it works | Verdict |
 |---|---|---|
-| **A. Same-origin reverse proxy + iframe (chosen)** | nginx (prod) and Vite (dev) proxy `/apisix-dashboard/*` to the upstream Apisix Dashboard service. A new Vue route `/apisix` renders an `<iframe src="/apisix-dashboard/">`. fdsc-dashboard's app bar + navigation drawer remain visible above the iframe; SSO is achieved by configuring the Apisix Dashboard against the **same Keycloak realm and OIDC client** that fdsc-dashboard uses. Same origin avoids cookie/CORS/`frame-ancestors` problems. | ✅ Chosen |
+| **A. Same-origin reverse proxy + iframe (chosen)** | nginx (prod) and Vite (dev) proxy `/apisix-dashboard/*` to the upstream Apisix Dashboard service. A new Vue route `/apisix` renders an `<iframe src="/apisix-dashboard/">`. fdsc-dashboard's app bar + navigation drawer remain visible above the iframe; SSO is achieved by configuring the Apisix Dashboard against the **same OIDC Identity Provider (IdP)** that fdsc-dashboard uses. Same origin avoids cookie/CORS/`frame-ancestors` problems. | ✅ Chosen |
 | **B. Cross-origin iframe to a separate Apisix host** | Direct iframe to a different origin. Requires Apisix Dashboard to relax `frame-ancestors`/CSP, requires CORS for any token-handoff, and breaks third-party cookies in modern browsers. | ❌ Rejected |
 | **C. External tab link** | Just open Apisix Dashboard in a new browser tab. | ❌ Fails the "easy move back" requirement and provides no in-UI integration. |
 
@@ -32,20 +32,24 @@ single-origin runtime model the Dockerfile/nginx setup already supports.
 ### How SSO works (Option A)
 
 - Apisix Dashboard 3.x supports OIDC via its `conf/conf.yaml` `authentication`
-  block. Operators configure it against the **same Keycloak realm** and the
-  **same OIDC client** (or a sibling client in the same realm) that
-  fdsc-dashboard already uses.
+  block. Operators configure it against the **same OIDC Identity Provider
+  (IdP)** — e.g. Keycloak, Authentik, Dex, or any spec-compliant OIDC
+  provider — and the **same OIDC client** (or a sibling client on the same
+  issuer) that fdsc-dashboard already uses.
 - Because both applications live on the same origin and share an active
-  Keycloak SSO session, the user's first navigation to `/apisix` either
+  OIDC SSO session, the user's first navigation to `/apisix` either
   reuses the existing session silently (`prompt=none` works, see Apisix's
   OIDC plugin docs) or completes a redirect-then-back round-trip with no
   password prompt.
-- Roles propagate through the Keycloak token's `realm_access.roles` claim,
-  which is the **same claim path** the existing fdsc-dashboard auth store
-  already reads (`DEFAULT_ROLES_CLAIM_PATH = 'realm_access.roles'` in
-  `src/auth/constants.ts`). Apisix Dashboard's role mapping is configured to
-  honour the same role names, so an `admin` in fdsc-dashboard is an admin in
-  Apisix Dashboard automatically.
+- Roles propagate through the OIDC token's roles claim (configurable via
+  `rolesClaimPath` in the fdsc-dashboard auth config; defaults to
+  `realm_access.roles` for Keycloak compatibility but works with any
+  claim path the IdP supports). This is the **same claim path** the
+  existing fdsc-dashboard auth store already reads
+  (`DEFAULT_ROLES_CLAIM_PATH` in `src/auth/constants.ts`). Apisix
+  Dashboard's role mapping is configured to honour the same role names, so
+  an `admin` in fdsc-dashboard is an admin in Apisix Dashboard
+  automatically.
 
 ### How "back to dashboard" works (Option A)
 
@@ -65,7 +69,7 @@ proxying, routing, the iframe view, navigation, RBAC gating, mocks for local
 dev, and documentation. It does **not** modify the upstream Apisix Dashboard
 or the FIWARE Data Space Connector helm chart — operators of the connector
 must configure their Apisix Dashboard's OIDC settings against the same
-Keycloak realm. That requirement is documented in the README in Step 6.
+OIDC Identity Provider. That requirement is documented in the README in Step 6.
 
 ### Configuration model
 
@@ -326,7 +330,7 @@ configuration **and** the user's role.
 ### Step 5: Mock Apisix Dashboard service for local docker-compose
 
 Provide a stand-in service so contributors can exercise the integration
-end-to-end without a Keycloak + Apisix stack. The mock simulates the
+end-to-end without a full OIDC IdP + Apisix stack. The mock simulates the
 Apisix Dashboard's served HTML so the iframe renders something
 recognisable.
 
@@ -388,22 +392,27 @@ quality gate.
      the upstream Apisix Dashboard project.
   2. **"SSO with Apisix Dashboard"** — operator instructions:
      - Configure Apisix Dashboard's `conf.yaml` `authentication.oidc`
-       block against the **same Keycloak realm** and either the same
-       OIDC client id or a sibling client in the same realm.
+       block against the **same OIDC Identity Provider (IdP)** and
+       either the same OIDC client id or a sibling client on the same
+       issuer.
      - Set the redirect URI to the same `/apisix-dashboard/` path so the
        embedded session terminates inside the iframe.
      - Use `prompt=none` for silent SSO when an active session exists.
-     - The `realm_access.roles` claim path is the canonical role source
-       — make sure the Keycloak client has the `roles` mapper enabled.
-     - Provide a worked Keycloak example (realm JSON snippet) and an
-       Apisix Dashboard `conf.yaml` snippet.
+     - The roles claim path must match the one configured in
+       fdsc-dashboard's `rolesClaimPath` (defaults to
+       `realm_access.roles` for Keycloak; adjust to suit the IdP, e.g.
+       `roles` for Authentik, `groups` for Dex, etc.). Ensure the IdP's
+       client configuration includes the relevant roles/groups mapper.
+     - Provide worked examples for common IdPs (Keycloak realm JSON
+       snippet, generic OIDC provider config) and an Apisix Dashboard
+       `conf.yaml` snippet.
   3. **"Role propagation"** — explains that fdsc-dashboard's `admin` and
      `viewer` roles map to Apisix Dashboard's role model via the shared
-     OIDC `realm_access.roles` claim, and that no token forwarding is
-     performed by fdsc-dashboard for the embedded session — Apisix
-     Dashboard authenticates **directly** with Keycloak in its own
-     redirect flow. (This avoids the security pitfall of injecting a
-     dashboard-issued token into a third-party app.)
+     OIDC roles claim (path is configurable per provider), and that no
+     token forwarding is performed by fdsc-dashboard for the embedded
+     session — Apisix Dashboard authenticates **directly** with the OIDC
+     IdP in its own redirect flow. (This avoids the security pitfall of
+     injecting a dashboard-issued token into a third-party app.)
 - `CLAUDE.md` — add `apisix/` and `views/apisix/` to the **Project
   Structure** tree, add `useApisix.ts` to the `composables/` tree, and
   add a one-line bullet under **Key Conventions** noting that the
@@ -422,7 +431,8 @@ likely none new.
 
 **Acceptance criteria:**
 - README sections render correctly on GitHub and contain the worked
-  Keycloak + Apisix `conf.yaml` examples.
+  OIDC IdP + Apisix `conf.yaml` examples (with Keycloak as one
+  example among other supported IdPs).
 - All new user-facing strings are i18n-keyed under `apisix.*` and
   `nav.apisix`.
 - The dashboard runs unchanged when `APISIX_DASHBOARD_URL` is unset
