@@ -25,11 +25,18 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built assets from build stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Install the runtime auth-config renderer. nginx:alpine's default entrypoint
+# Install runtime entrypoint scripts. nginx:alpine's default entrypoint
 # automatically executes every *.sh file in /docker-entrypoint.d/ before
-# launching nginx, so we just drop our script in there.
+# launching nginx, so we just drop our scripts in there.
+#
+# 10-render-config.sh — substitutes AUTH_CONFIG_JSON into config.js.
+# 20-render-apisix-upstream.sh — substitutes APISIX_DASHBOARD_URL into
+#   the nginx config so operators can override the upstream Apisix
+#   Dashboard host at container start without rebuilding the image.
 COPY scripts/docker-entrypoint.d/10-render-config.sh /docker-entrypoint.d/10-render-config.sh
-RUN chmod +x /docker-entrypoint.d/10-render-config.sh
+COPY scripts/docker-entrypoint.d/20-render-apisix-upstream.sh /docker-entrypoint.d/20-render-apisix-upstream.sh
+RUN chmod +x /docker-entrypoint.d/10-render-config.sh \
+    /docker-entrypoint.d/20-render-apisix-upstream.sh
 
 EXPOSE 80
 
