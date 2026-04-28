@@ -146,6 +146,14 @@ describe('authGuard', () => {
           fullPath: '/policies/1/edit',
         },
       ],
+      [
+        'apisix-dashboard',
+        {
+          name: 'apisix-dashboard',
+          path: '/apisix',
+          fullPath: '/apisix',
+        },
+      ],
     ])('lets the user navigate to %s unchanged', async (_label, target) => {
       const { authGuard, useAuthStore } = await freshRouter()
       useAuthStore() // instantiate so the store is live
@@ -250,6 +258,7 @@ describe('authGuard', () => {
       ['policy-edit', 'policies-list'],
       ['service-policy-create', 'policies-list'],
       ['service-policy-edit', 'policies-list'],
+      ['apisix-dashboard', 'home'],
     ])(
       'redirects a viewer away from %s to %s',
       async (routeName, fallbackName) => {
@@ -273,7 +282,10 @@ describe('authGuard', () => {
       },
     )
 
-    it('allows admins through admin-only routes', async () => {
+    it.each([
+      ['til-create'],
+      ['apisix-dashboard'],
+    ])('allows admins through %s', async (routeName) => {
       const { authGuard, useAuthStore } = await freshRouter()
       const store = useAuthStore()
       store.user = {
@@ -285,34 +297,40 @@ describe('authGuard', () => {
       store.activeProviderId = 'keycloak'
       const next = vi.fn()
       authGuard(
-        buildRoute({ name: 'til-create', meta: { requiresAdmin: true } }),
+        buildRoute({ name: routeName, meta: { requiresAdmin: true } }),
         buildRoute(),
         next,
       )
       expect(next).toHaveBeenCalledWith()
     })
 
-    it('redirects an unauthenticated user to login first, not to a list fallback', async () => {
-      // Auth check runs before admin check, so unauthenticated users go
-      // through the login flow regardless of `requiresAdmin`.
-      const { authGuard, useAuthStore } = await freshRouter()
-      useAuthStore()
-      const next = vi.fn()
-      authGuard(
-        buildRoute({
-          name: 'til-create',
-          path: '/til/new',
-          fullPath: '/til/new',
-          meta: { requiresAdmin: true },
-        }),
-        buildRoute(),
-        next,
-      )
-      expect(next).toHaveBeenCalledWith({ name: 'login' })
-      expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe(
-        '/til/new',
-      )
-    })
+    it.each([
+      ['til-create', '/til/new'],
+      ['apisix-dashboard', '/apisix'],
+    ])(
+      'redirects an unauthenticated user from %s to login first',
+      async (routeName, routePath) => {
+        // Auth check runs before admin check, so unauthenticated users go
+        // through the login flow regardless of `requiresAdmin`.
+        const { authGuard, useAuthStore } = await freshRouter()
+        useAuthStore()
+        const next = vi.fn()
+        authGuard(
+          buildRoute({
+            name: routeName,
+            path: routePath,
+            fullPath: routePath,
+            meta: { requiresAdmin: true },
+          }),
+          buildRoute(),
+          next,
+        )
+        expect(next).toHaveBeenCalledWith({ name: 'login' })
+        expect(window.sessionStorage.getItem(RETURN_TO_STORAGE_KEY)).toBe(
+          routePath,
+        )
+      },
+    )
 
     it('falls back to home when an admin-only route has no recognised family', async () => {
       const { authGuard, useAuthStore } = await freshRouter()
