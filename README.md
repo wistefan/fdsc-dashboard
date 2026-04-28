@@ -34,22 +34,12 @@ npm run dev
 
 The app starts at **http://localhost:3000**. Hot-module replacement is enabled so changes are reflected instantly.
 
-### 3. Configure backend API URLs (optional)
+### 3. Backend API routing
 
-By default the Vite dev server proxies API requests to local backend services:
-
-| Service | Env Variable        | Default                |
-|---------|---------------------|------------------------|
-| TIL     | `VITE_TIL_API_URL`  | `http://localhost:8080` |
-| TIR     | `VITE_TIR_API_URL`  | `http://localhost:8081` |
-| CCS     | `VITE_CCS_API_URL`  | `http://localhost:8082` |
-| ODRL    | `VITE_ODRL_API_URL` | `http://localhost:8083` |
-
-Override them by setting environment variables before running the dev server:
-
-```bash
-VITE_TIL_API_URL=http://my-til-host:8080 npm run dev
-```
+The frontend sends all API requests to relative `/api/*` paths on the same origin.
+In development the Vite dev server proxies these to local backend services
+(see `vite.config.ts` for default target URLs). In production the Express BFF
+server proxies them to downstream services on a private network.
 
 ## Running with Docker Compose (Mock Backends)
 
