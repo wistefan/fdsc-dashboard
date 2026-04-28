@@ -1,55 +1,70 @@
-# Stage 1: Build the Vue application
-FROM node:20-alpine AS build
+# Multi-stage Dockerfile for the FDSC Dashboard.
+#
+# Stage 1: Build the Vue.js frontend SPA.
+# Stage 2: Build the BFF (Backend-for-Frontend) Express server.
+# Stage 3: Production image — Node.js serves the SPA and proxies API requests.
+
+# ---------------------------------------------------------------------------
+# Stage 1: Build the frontend
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS build-frontend
 
 RUN apk add --no-cache curl bash
 
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-
 RUN npm ci
 
 COPY . .
 RUN npm run generate:api && npm run build
 
-# Stage 2: Serve with nginx
-FROM nginx:alpine AS production
+# ---------------------------------------------------------------------------
+# Stage 2: Build the BFF server
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS build-server
 
-# `envsubst` (from gettext) is needed by 10-render-config.sh to substitute
-# runtime configuration variables into public/config.template.js at container
-# start. The following environment variables are supported:
-#
-# Authentication:
-#   AUTH_CONFIG_JSON  — JSON string with provider config (default: disabled).
-#
-# API service URLs (each defaults to empty → frontend uses /api/<svc> proxy):
-#   TIL_API_URL   — Trusted Issuers List service base URL.
-#   TIR_API_URL   — Trusted Issuers Registry service base URL.
-#   CCS_API_URL   — Credentials Config Service base URL.
-#   ODRL_API_URL  — ODRL Policy service base URL.
-RUN apk add --no-cache gettext
+WORKDIR /app/server
 
-# Enable the built-in 15-local-resolvers.envsh so that NGINX_LOCAL_RESOLVERS
-# is populated from /etc/resolv.conf (works in Docker and k8s).
-ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+COPY server/package.json server/package-lock.json* ./
+RUN npm ci
 
-# Install the nginx config template.  The nginx image's built-in
-# 20-envsubst-on-templates.sh renders *.template files from this directory
-# into /etc/nginx/conf.d/ at container start, substituting environment
-# variables (set by 15-set-nginx-env.envsh) into the config.
-COPY default.conf.template /etc/nginx/templates/default.conf.template
+COPY server/tsconfig.json ./
+COPY server/src ./src
+RUN npm run build
 
-# Copy built assets from build stage
-COPY --from=build /app/dist /usr/share/nginx/html
+# Re-install without devDependencies for the production image
+RUN rm -rf node_modules && npm ci --omit=dev
 
-# Install entrypoint scripts.  nginx:alpine's entrypoint runs every *.sh
-# and sources every *.envsh in /docker-entrypoint.d/ (alphabetical order)
-# before launching nginx.
-COPY scripts/docker-entrypoint.d/10-render-config.sh /docker-entrypoint.d/10-render-config.sh
-COPY scripts/docker-entrypoint.d/15-set-nginx-env.envsh /docker-entrypoint.d/15-set-nginx-env.envsh
-RUN chmod +x /docker-entrypoint.d/10-render-config.sh \
-             /docker-entrypoint.d/15-set-nginx-env.envsh
+# ---------------------------------------------------------------------------
+# Stage 3: Production image
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS production
 
-EXPOSE 80
+# Run as non-root for security
+RUN addgroup -S app && adduser -S app -G app
 
-CMD ["nginx", "-g", "daemon off;"]
+WORKDIR /app
+
+# Copy the built BFF server (compiled JS + production node_modules)
+COPY --from=build-server /app/server/dist ./server/dist
+COPY --from=build-server /app/server/node_modules ./server/node_modules
+COPY --from=build-server /app/server/package.json ./server/package.json
+
+# Copy the built frontend assets
+COPY --from=build-frontend /app/dist ./dist
+
+# Environment variables with defaults (see server/src/config.ts for docs)
+ENV PORT=3000 \
+    TIL_API_URL=http://til-service:8080 \
+    TIR_API_URL=http://tir-service:8080 \
+    CCS_API_URL=http://ccs-service:8080 \
+    ODRL_API_URL=http://odrl-service:8080 \
+    AUTH_CONFIG_JSON='{"providers":[]}' \
+    STATIC_DIR=/app/dist
+
+USER app
+
+EXPOSE 3000
+
+CMD ["node", "server/dist/index.js"]
