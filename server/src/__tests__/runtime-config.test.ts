@@ -1,0 +1,79 @@
+/**
+ * Tests for the BFF runtime configuration endpoint.
+ *
+ * Verifies that GET /config.js returns valid JavaScript that assigns
+ * auth configuration to `window.__AUTH_CONFIG__`, with the correct
+ * content type and handling of various config values.
+ */
+
+import { describe, it, expect } from 'vitest'
+import express from 'express'
+import request from 'supertest'
+import { createRuntimeConfigRouter } from '../runtime-config.js'
+import type { AppConfig } from '../config.js'
+
+/**
+ * Creates a test AppConfig with optional overrides.
+ *
+ * @param overrides - Partial config values to override defaults
+ * @returns A complete AppConfig suitable for testing
+ */
+function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+  return {
+    port: 3000,
+    tilApiUrl: 'http://til:8080',
+    tirApiUrl: 'http://tir:8080',
+    ccsApiUrl: 'http://ccs:8080',
+    odrlApiUrl: 'http://odrl:8080',
+    authConfigJson: '{"providers":[]}',
+    staticDir: '../dist',
+    ...overrides,
+  }
+}
+
+describe('GET /config.js', () => {
+  it('returns 200 status code', async () => {
+    const app = express()
+    app.use(createRuntimeConfigRouter(createTestConfig()))
+
+    const res = await request(app).get('/config.js')
+    expect(res.status).toBe(200)
+  })
+
+  it('returns application/javascript content type', async () => {
+    const app = express()
+    app.use(createRuntimeConfigRouter(createTestConfig()))
+
+    const res = await request(app).get('/config.js')
+    expect(res.headers['content-type']).toMatch(/application\/javascript/)
+  })
+
+  it('returns JavaScript assigning default empty providers to window.__AUTH_CONFIG__', async () => {
+    const app = express()
+    app.use(createRuntimeConfigRouter(createTestConfig()))
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toBe('window.__AUTH_CONFIG__ = {"providers":[]};')
+  })
+
+  it('embeds custom auth provider configuration', async () => {
+    const authJson = '{"providers":[{"name":"keycloak","url":"https://auth.example.com"}]}'
+    const app = express()
+    app.use(createRuntimeConfigRouter(createTestConfig({ authConfigJson: authJson })))
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toBe(`window.__AUTH_CONFIG__ = ${authJson};`)
+  })
+
+  it('handles complex auth configuration with multiple providers', async () => {
+    const authJson =
+      '{"providers":[{"name":"keycloak","url":"https://kc.example.com"},{"name":"github","clientId":"abc123"}]}'
+    const app = express()
+    app.use(createRuntimeConfigRouter(createTestConfig({ authConfigJson: authJson })))
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toContain('window.__AUTH_CONFIG__')
+    expect(res.text).toContain('keycloak')
+    expect(res.text).toContain('github')
+  })
+})
