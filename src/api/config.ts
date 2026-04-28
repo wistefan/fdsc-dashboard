@@ -17,13 +17,16 @@
 /**
  * API configuration module.
  *
- * Reads base URLs from Vite environment variables and applies them
- * to each generated OpenAPI client configuration.  During development
- * the Vite dev-server proxy rewrites `/api/<service>/*` to the real
- * backend, so the default base paths point at those proxy prefixes.
+ * Resolves the base URL for each generated OpenAPI client using a three-tier
+ * fallback chain:
  *
- * In production (nginx) the same `/api/<service>` prefix is reverse-
- * proxied to the real backends via nginx config.
+ * 1. **Runtime injection** — `window.__API_CONFIG__` (set by the nginx
+ *    entrypoint script `10-render-config.sh` from `TIL_API_URL` etc.
+ *    environment variables at container startup).
+ * 2. **Build-time env** — `import.meta.env.VITE_<SERVICE>_API_URL` (set at
+ *    `vite build` time or in a local `.env` file during development).
+ * 3. **Default proxy path** — `/api/<service>` (works with both the Vite
+ *    dev-server proxy and the production nginx reverse-proxy).
  *
  * This module also wires a shared `Authorization: Bearer <jwt>` token
  * resolver into every generated client. The generated request helper
@@ -39,14 +42,176 @@ import { OpenAPI as CcsOpenAPI } from '@/api/generated/ccs'
 import { OpenAPI as OdrlOpenAPI } from '@/api/generated/odrl'
 import { getAuthTokenSync } from '@/composables/useAuth'
 
+// ---------------------------------------------------------------------------
+// Named constants — avoid magic strings for global keys, field names, env
+// var names, and default proxy paths.
+// ---------------------------------------------------------------------------
+
+/**
+ * Key on the `window` object where the runtime API URL configuration is
+ * injected by the nginx entrypoint script (`10-render-config.sh`).
+ */
+const API_CONFIG_GLOBAL_KEY = '__API_CONFIG__'
+
+/**
+ * Field name inside the runtime API config object for the Trusted Issuers
+ * List management API URL.
+ */
+const FIELD_TIL_API_URL = 'tilApiUrl'
+
+/**
+ * Field name inside the runtime API config object for the Trusted Issuers
+ * Registry (EBSI) API URL.
+ */
+const FIELD_TIR_API_URL = 'tirApiUrl'
+
+/**
+ * Field name inside the runtime API config object for the Credentials
+ * Config Service API URL.
+ */
+const FIELD_CCS_API_URL = 'ccsApiUrl'
+
+/**
+ * Field name inside the runtime API config object for the ODRL-PAP API URL. */
+const FIELD_ODRL_API_URL = 'odrlApiUrl'
+
+/** Vite build-time env var name for the TIL API URL. */
+const ENV_VITE_TIL_API_URL = 'VITE_TIL_API_URL'
+
+/** Vite build-time env var name for the TIR API URL. */
+const ENV_VITE_TIR_API_URL = 'VITE_TIR_API_URL'
+
+/** Vite build-time env var name for the CCS API URL. */
+const ENV_VITE_CCS_API_URL = 'VITE_CCS_API_URL'
+
+/** Vite build-time env var name for the ODRL API URL. */
+const ENV_VITE_ODRL_API_URL = 'VITE_ODRL_API_URL'
+
 /** Default proxy prefix for the Trusted Issuers List management API. */
 const DEFAULT_TIL_BASE = '/api/til'
+
 /** Default proxy prefix for the Trusted Issuers Registry (EBSI) API. */
 const DEFAULT_TIR_BASE = '/api/tir'
+
 /** Default proxy prefix for the Credentials Config Service API. */
 const DEFAULT_CCS_BASE = '/api/ccs'
+
 /** Default proxy prefix for the ODRL-PAP API. */
 const DEFAULT_ODRL_BASE = '/api/odrl'
+
+// ---------------------------------------------------------------------------
+// Runtime config loader
+// ---------------------------------------------------------------------------
+
+/**
+ * Shape returned by {@link loadApiConfig}. Each field is either a non-empty
+ * URL string extracted from the runtime config, or `undefined` when the
+ * value was absent or empty (signalling that the caller should fall through
+ * to the next tier).
+ */
+interface ApiConfigOverrides {
+  tilApiUrl?: string
+  tirApiUrl?: string
+  ccsApiUrl?: string
+  odrlApiUrl?: string
+}
+
+/**
+ * Extract a string value from a record, returning `undefined` for missing
+ * keys, non-string values, or empty strings.
+ *
+ * @param obj  - The record to read from.
+ * @param key  - The property name to extract.
+ * @returns The trimmed string value, or `undefined` if it should be ignored.
+ */
+function extractStringField(obj: Record<string, unknown>, key: string): string | undefined {
+  const value = obj[key]
+  if (typeof value !== 'string') {
+    return undefined
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+/**
+ * Read the runtime API URL configuration from `window.__API_CONFIG__`.
+ *
+ * The nginx entrypoint script renders a `config.js` file that sets
+ * `window.__API_CONFIG__` to a JSON object with per-service URL fields.
+ * This function validates that the global is a plain object and extracts
+ * any non-empty string URL fields.
+ *
+ * Empty strings (which the entrypoint injects when the corresponding env
+ * var is unset) are treated as absent so that the caller falls through to
+ * the next resolution tier.
+ *
+ * @returns An object whose fields are only present for URLs that were
+ *   explicitly configured at runtime.
+ */
+function loadApiConfig(): ApiConfigOverrides {
+  const raw = (window as Window)[API_CONFIG_GLOBAL_KEY]
+
+  // Not set — common in local dev where config.js does not inject this global.
+  if (raw == null) {
+    return {}
+  }
+
+  // Guard: must be a plain object (not an array, Date, etc.).
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return {}
+  }
+
+  const obj = raw as Record<string, unknown>
+
+  return {
+    tilApiUrl: extractStringField(obj, FIELD_TIL_API_URL),
+    tirApiUrl: extractStringField(obj, FIELD_TIR_API_URL),
+    ccsApiUrl: extractStringField(obj, FIELD_CCS_API_URL),
+    odrlApiUrl: extractStringField(obj, FIELD_ODRL_API_URL),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// URL resolution helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a single service base URL using the three-tier fallback chain.
+ *
+ * 1. Runtime value from `window.__API_CONFIG__` (if non-empty).
+ * 2. Build-time value from `import.meta.env.VITE_<SERVICE>_API_URL`.
+ * 3. Default proxy path (`/api/<service>`).
+ *
+ * @param runtimeValue  - Value extracted from runtime config (may be `undefined`).
+ * @param envVarName    - Name of the Vite env var to check at build time.
+ * @param defaultBase   - Fallback proxy path used when neither runtime nor
+ *                        build-time values are available.
+ * @returns The resolved base URL string.
+ */
+function resolveServiceUrl(
+  runtimeValue: string | undefined,
+  envVarName: string,
+  defaultBase: string,
+): string {
+  // Tier 1: runtime injection
+  if (runtimeValue) {
+    return runtimeValue
+  }
+
+  // Tier 2: build-time env var (cast needed because env var names are
+  // accessed dynamically; the ImportMetaEnv interface declares them).
+  const buildTimeValue = import.meta.env[envVarName] as string | undefined
+  if (buildTimeValue && buildTimeValue.trim().length > 0) {
+    return buildTimeValue
+  }
+
+  // Tier 3: default proxy path
+  return defaultBase
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 /**
  * Shared token resolver installed on every generated OpenAPI client.
@@ -68,14 +233,39 @@ export const authTokenResolver = async (): Promise<string> => getAuthTokenSync()
  * Initialise every generated API client with the correct base URL and a
  * shared bearer-token resolver.
  *
+ * Base URLs are resolved via a three-tier fallback chain per service:
+ *
+ * 1. **Runtime injection** — `window.__API_CONFIG__.<field>` (set at
+ *    container startup via env vars such as `TIL_API_URL`).
+ * 2. **Build-time env** — `import.meta.env.VITE_<SERVICE>_API_URL`.
+ * 3. **Default proxy path** — `/api/<service>`.
+ *
  * Call this once at application startup (e.g. in `main.ts`) before
  * any API requests are made.
  */
 export function configureApiClients(): void {
-  TilOpenAPI.BASE = import.meta.env.VITE_TIL_API_URL || DEFAULT_TIL_BASE
-  TirOpenAPI.BASE = import.meta.env.VITE_TIR_API_URL || DEFAULT_TIR_BASE
-  CcsOpenAPI.BASE = import.meta.env.VITE_CCS_API_URL || DEFAULT_CCS_BASE
-  OdrlOpenAPI.BASE = import.meta.env.VITE_ODRL_API_URL || DEFAULT_ODRL_BASE
+  const runtimeConfig = loadApiConfig()
+
+  TilOpenAPI.BASE = resolveServiceUrl(
+    runtimeConfig.tilApiUrl,
+    ENV_VITE_TIL_API_URL,
+    DEFAULT_TIL_BASE,
+  )
+  TirOpenAPI.BASE = resolveServiceUrl(
+    runtimeConfig.tirApiUrl,
+    ENV_VITE_TIR_API_URL,
+    DEFAULT_TIR_BASE,
+  )
+  CcsOpenAPI.BASE = resolveServiceUrl(
+    runtimeConfig.ccsApiUrl,
+    ENV_VITE_CCS_API_URL,
+    DEFAULT_CCS_BASE,
+  )
+  OdrlOpenAPI.BASE = resolveServiceUrl(
+    runtimeConfig.odrlApiUrl,
+    ENV_VITE_ODRL_API_URL,
+    DEFAULT_ODRL_BASE,
+  )
 
   TilOpenAPI.TOKEN = authTokenResolver
   TirOpenAPI.TOKEN = authTokenResolver
