@@ -8,7 +8,8 @@
     "til": "Trusted Issuers",
     "tir": "Participants List",
     "ccs": "Credentials Config",
-    "policies": "Policies"
+    "policies": "Policies",
+    "apisix": "Apisix Dashboard"
   },
   "common": {
     "loading": "Loading…",
@@ -60,7 +61,8 @@
     "tilDescription": "Manage trusted issuer entries",
     "tirDescription": "Browse registered participants",
     "ccsDescription": "Configure credential services",
-    "policiesDescription": "Define ODRL access policies"
+    "policiesDescription": "Define ODRL access policies",
+    "apisixDescription": "Manage gateway routes, services, and consumers"
   },
   "theme": {
     "toggle": "Toggle theme",
