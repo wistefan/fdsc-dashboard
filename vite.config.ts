@@ -3,7 +3,14 @@ import vue from '@vitejs/plugin-vue'
 import vuetify from 'vite-plugin-vuetify'
 import { fileURLToPath, URL } from 'node:url'
 
-/** Default backend API port for local development proxy. */
+/**
+ * Default backend API URLs for local development proxy.
+ *
+ * In production, the BFF Express server (see server/) serves the SPA and
+ * proxies all /api/* requests to downstream services. These Vite dev-server
+ * proxy entries are only used during frontend-only development (`npm run dev`)
+ * when the BFF is not running.
+ */
 const DEFAULT_TIL_URL = 'http://localhost:8080'
 const DEFAULT_TIR_URL = 'http://localhost:8081'
 const DEFAULT_CCS_URL = 'http://localhost:8082'
