@@ -29,17 +29,26 @@ FROM nginx:alpine AS production
 #   ODRL_API_URL  — ODRL Policy service base URL.
 RUN apk add --no-cache gettext
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Enable the built-in 15-local-resolvers.envsh so that NGINX_LOCAL_RESOLVERS
+# is populated from /etc/resolv.conf (works in Docker and k8s).
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+
+# Install the nginx config template.  The nginx image's built-in
+# 20-envsubst-on-templates.sh renders *.template files from this directory
+# into /etc/nginx/conf.d/ at container start, substituting environment
+# variables (set by 15-set-nginx-env.envsh) into the config.
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 
 # Copy built assets from build stage
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Install the runtime auth-config renderer. nginx:alpine's default entrypoint
-# automatically executes every *.sh file in /docker-entrypoint.d/ before
-# launching nginx, so we just drop our script in there.
+# Install entrypoint scripts.  nginx:alpine's entrypoint runs every *.sh
+# and sources every *.envsh in /docker-entrypoint.d/ (alphabetical order)
+# before launching nginx.
 COPY scripts/docker-entrypoint.d/10-render-config.sh /docker-entrypoint.d/10-render-config.sh
-RUN chmod +x /docker-entrypoint.d/10-render-config.sh
+COPY scripts/docker-entrypoint.d/15-set-nginx-env.envsh /docker-entrypoint.d/15-set-nginx-env.envsh
+RUN chmod +x /docker-entrypoint.d/10-render-config.sh \
+             /docker-entrypoint.d/15-set-nginx-env.envsh
 
 EXPOSE 80
 

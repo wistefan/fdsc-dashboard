@@ -5,18 +5,16 @@ services:
     build: .
     ports:
       - "8080:80"
-    # Runtime API URL configuration (optional).
-    # When set, these override the default nginx proxy paths (/api/<service>).
-    # When unset or empty, the dashboard uses the nginx reverse-proxy routes
-    # defined in the nginx config, which is the correct setup for this
-    # docker-compose stack where mock backends are on the internal network.
-    # environment:
-    #   TIL_API_URL: http://custom-til:8080
-    #   TIR_API_URL: http://custom-tir:8080
-    #   CCS_API_URL: http://custom-ccs:8080
-    #   ODRL_API_URL: http://custom-odrl:8080
-    volumes:
-      - ./nginx-docker-compose.conf:/etc/nginx/conf.d/default.conf:ro
+    # Point the nginx reverse-proxy at the mock backends on the compose
+    # network.  NGINX_*_UPSTREAM vars feed into default.conf.template via
+    # 15-set-nginx-env.envsh.  TIL_API_URL etc. are intentionally left
+    # unset so the frontend falls back to the /api/<svc> proxy paths
+    # (the browser cannot resolve Docker-internal hostnames).
+    environment:
+      NGINX_TIL_UPSTREAM: http://mock-til:80
+      NGINX_TIR_UPSTREAM: http://mock-tir:80
+      NGINX_CCS_UPSTREAM: http://mock-ccs:80
+      NGINX_ODRL_UPSTREAM: http://mock-odrl:80
     depends_on:
       - mock-til
       - mock-tir

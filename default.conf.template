@@ -1,0 +1,62 @@
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Runtime-configurable DNS resolver so proxy_pass with variables can
+    # resolve upstream hostnames lazily (at request time, not at startup).
+    # Defaults to Docker's embedded resolver; override NGINX_RESOLVER for
+    # other environments (e.g. kube-dns).
+    resolver ${NGINX_RESOLVER};
+
+    # Handle SPA routing — serve index.html for all non-file routes
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Proxy API requests to backend services.
+    # Upstreams are derived from TIL_API_URL / TIR_API_URL / CCS_API_URL /
+    # ODRL_API_URL at container start (see 15-set-nginx-env.envsh).
+    # The "set $var" + "proxy_pass $var" pattern defers DNS resolution to
+    # request time, preventing nginx from crashing when an upstream hostname
+    # is not (yet) resolvable.
+
+    location /api/til/ {
+        set $upstream_til ${NGINX_TIL_UPSTREAM};
+        rewrite ^/api/til/(.*) /$1 break;
+        proxy_pass $upstream_til;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/tir/ {
+        set $upstream_tir ${NGINX_TIR_UPSTREAM};
+        rewrite ^/api/tir/(.*) /$1 break;
+        proxy_pass $upstream_tir;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/ccs/ {
+        set $upstream_ccs ${NGINX_CCS_UPSTREAM};
+        rewrite ^/api/ccs/(.*) /$1 break;
+        proxy_pass $upstream_ccs;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/odrl/ {
+        set $upstream_odrl ${NGINX_ODRL_UPSTREAM};
+        rewrite ^/api/odrl/(.*) /$1 break;
+        proxy_pass $upstream_odrl;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
