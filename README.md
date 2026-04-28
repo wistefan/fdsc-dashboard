@@ -1,6 +1,6 @@
 # FDSC Dashboard
 
-A Vue 3 dashboard for managing FIWARE Data Space Connector (DSC) resources including Trusted Issuers Lists (TIL), Credentials Config Service (CCS), and ODRL Policies.
+A Vue 3 dashboard for managing FIWARE Data Space Connector (DSC) resources including Trusted Issuers Lists (TIL), Credentials Config Service (CCS), ODRL Policies, and an embedded [Apache APISIX Dashboard](https://github.com/apache/apisix-dashboard) for gateway management.
 
 ## Tech Stack
 
@@ -38,12 +38,13 @@ The app starts at **http://localhost:3000**. Hot-module replacement is enabled s
 
 By default the Vite dev server proxies API requests to local backend services:
 
-| Service | Env Variable        | Default                |
-|---------|---------------------|------------------------|
-| TIL     | `VITE_TIL_API_URL`  | `http://localhost:8080` |
-| TIR     | `VITE_TIR_API_URL`  | `http://localhost:8081` |
-| CCS     | `VITE_CCS_API_URL`  | `http://localhost:8082` |
-| ODRL    | `VITE_ODRL_API_URL` | `http://localhost:8083` |
+| Service            | Env Variable                 | Default                |
+|--------------------|------------------------------|------------------------|
+| TIL                | `VITE_TIL_API_URL`           | `http://localhost:8080` |
+| TIR                | `VITE_TIR_API_URL`           | `http://localhost:8081` |
+| CCS                | `VITE_CCS_API_URL`           | `http://localhost:8082` |
+| ODRL               | `VITE_ODRL_API_URL`          | `http://localhost:8083` |
+| Apisix Dashboard   | `VITE_APISIX_DASHBOARD_URL`  | `http://localhost:9000` |
 
 Override them by setting environment variables before running the dev server:
 
@@ -62,13 +63,14 @@ docker compose up --build
 
 This starts:
 
-| Service        | Description                         |
-|----------------|-------------------------------------|
-| `dashboard`    | The dashboard UI on **http://localhost:8080** |
-| `mock-til`     | Mock Trusted Issuers List service   |
-| `mock-tir`     | Mock Trusted Issuers Registry       |
-| `mock-ccs`     | Mock Credentials Config Service     |
-| `mock-odrl`    | Mock ODRL-PAP service               |
+| Service                  | Description                                          |
+|--------------------------|------------------------------------------------------|
+| `dashboard`              | The dashboard UI on **http://localhost:8080**         |
+| `mock-til`               | Mock Trusted Issuers List service                    |
+| `mock-tir`               | Mock Trusted Issuers Registry                        |
+| `mock-ccs`               | Mock Credentials Config Service                      |
+| `mock-odrl`              | Mock ODRL-PAP service                                |
+| `mock-apisix-dashboard`  | Mock Apisix Dashboard (placeholder page at `/apisix-dashboard/`) |
 
 Stop the stack with:
 
@@ -416,6 +418,182 @@ to `VITE_AUTH_PROVIDERS`, otherwise disables auth.
 5. Set `AUTH_CONFIG_JSON` to a JSON document pointing at the realm, as in
    the sample above.
 
+## Apisix Dashboard Integration
+
+The [Apache APISIX Dashboard](https://github.com/apache/apisix-dashboard) is
+**embedded** inside fdsc-dashboard via a same-origin reverse-proxy and iframe,
+rather than reimplemented. Users access it at the `/apisix` route within the
+fdsc-dashboard shell — the app bar and navigation drawer remain visible so they
+can switch back to TIL / CCS / Policies with a single click.
+
+The integration is **optional**: when the upstream Apisix Dashboard URL is not
+configured the navigation entry is hidden and the `/apisix` route renders an
+informational "not configured" alert instead of a broken iframe.
+
+### Environment variables
+
+| Variable | Context | Default | Description |
+|---|---|---|---|
+| `VITE_APISIX_DASHBOARD_URL` | Local dev (`npm run dev`) | `http://localhost:9000` | Upstream URL the Vite dev-server proxy forwards `/apisix-dashboard/*` to. |
+| `APISIX_DASHBOARD_URL` | Production container | *(unset — integration disabled)* | Upstream URL injected at container start via the nginx entrypoint (`envsubst`). |
+
+Set the variable for your environment to enable the integration:
+
+```bash
+# Local development
+VITE_APISIX_DASHBOARD_URL=http://localhost:9000 npm run dev
+
+# Docker production image
+docker run -p 8080:80 \
+  -e APISIX_DASHBOARD_URL=http://apisix-dashboard:9000 \
+  fdsc-dashboard
+```
+
+### Architecture
+
+```
+┌──────────────────────────────────────────┐
+│  Browser                                 │
+│  ┌────────────────────────────────────┐  │
+│  │ fdsc-dashboard (Vue SPA)           │  │
+│  │  ┌──────────────────────────────┐  │  │
+│  │  │ <iframe src="/apisix-        │  │  │
+│  │  │         dashboard/">         │  │  │
+│  │  └──────────────────────────────┘  │  │
+│  └────────────────────────────────────┘  │
+└──────────────┬───────────────────────────┘
+               │ same-origin requests
+               ▼
+┌──────────────────────────────────────────┐
+│  nginx / Vite dev-server                 │
+│  /apisix-dashboard/* ──► upstream:9000   │
+└──────────────────────────────────────────┘
+```
+
+### Access control
+
+Only users with the **admin** role can see the Apisix Dashboard navigation
+entry and access the `/apisix` route. When authentication is disabled
+(no `AUTH_CONFIG_JSON`), the dashboard runs in legacy open mode and all
+users are treated as admin.
+
+### SSO with Apisix Dashboard
+
+The embedded Apisix Dashboard authenticates **directly** with the OIDC
+Identity Provider (IdP) — fdsc-dashboard does **not** inject or forward
+tokens into the iframe. Single Sign-On works because both applications
+share the same OIDC SSO session on the same origin.
+
+To achieve seamless SSO, operators must configure the Apisix Dashboard's
+OIDC authentication against the **same IdP** (and, ideally, the same OIDC
+client or a sibling client on the same issuer) that fdsc-dashboard uses.
+
+#### Operator checklist
+
+1. **Same OIDC issuer.** The `issuer` in the Apisix Dashboard's
+   `conf/conf.yaml` → `authentication.oidc` block must match the `issuer`
+   in fdsc-dashboard's `AUTH_CONFIG_JSON` provider entry.
+2. **Same (or sibling) OIDC client.** Use the same `clientId` or register a
+   second client on the same issuer realm. Both approaches share the SSO
+   session.
+3. **Redirect URI.** Set the redirect URI to the same-origin
+   `/apisix-dashboard/` path so the OIDC redirect terminates inside the
+   iframe (e.g. `https://dashboard.example.com/apisix-dashboard/callback`).
+4. **Silent SSO (`prompt=none`).** When an active SSO session already exists,
+   the IdP should be able to issue tokens without a visible login prompt.
+   Ensure the Apisix Dashboard's OIDC plugin is configured to try
+   `prompt=none` first.
+5. **Roles claim path.** The roles claim path in the Apisix Dashboard's OIDC
+   configuration must match the one configured in fdsc-dashboard's
+   `rolesClaimPath` (defaults to `realm_access.roles` for Keycloak). Adjust
+   to suit your IdP — for example: `roles` for Authentik, `groups` for Dex.
+
+#### Example: Keycloak realm configuration
+
+Register the Apisix Dashboard as a public OIDC client in the same Keycloak
+realm used by fdsc-dashboard:
+
+```json
+{
+  "clientId": "apisix-dashboard",
+  "enabled": true,
+  "publicClient": true,
+  "standardFlowEnabled": true,
+  "redirectUris": [
+    "https://dashboard.example.com/apisix-dashboard/*"
+  ],
+  "webOrigins": [
+    "https://dashboard.example.com"
+  ],
+  "protocolMappers": [
+    {
+      "name": "realm-roles",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-realm-role-mapper",
+      "config": {
+        "claim.name": "realm_access.roles",
+        "jsonType.label": "String",
+        "multivalued": "true",
+        "id.token.claim": "true",
+        "access.token.claim": "true"
+      }
+    }
+  ]
+}
+```
+
+#### Example: Apisix Dashboard `conf/conf.yaml` snippet
+
+```yaml
+authentication:
+  # Enable OIDC authentication against the same IdP as fdsc-dashboard.
+  type: openid-connect
+  oidc:
+    issuer: "https://keycloak.example.com/realms/fdsc"
+    client_id: "apisix-dashboard"
+    # redirect_uri must land inside the proxied /apisix-dashboard/ path
+    redirect_uri: "https://dashboard.example.com/apisix-dashboard/callback"
+    scope: "openid profile"
+    # Try silent SSO first — avoids a visible login prompt when the
+    # user already has an active SSO session from fdsc-dashboard.
+    prompt: "none"
+    # Logout should return to the fdsc-dashboard login page.
+    logout_redirect_uri: "https://dashboard.example.com/login"
+```
+
+#### Generic OIDC provider configuration
+
+For providers other than Keycloak (e.g. Authentik, Dex, Auth0):
+
+1. Register an OIDC client on the same issuer.
+2. Ensure the ID/access token includes a roles or groups claim.
+3. Set `rolesClaimPath` in fdsc-dashboard's `AUTH_CONFIG_JSON` to match the
+   claim path your IdP uses (e.g. `roles`, `groups`,
+   `https://example.com/roles`).
+4. Configure the Apisix Dashboard's OIDC plugin with the same issuer,
+   client ID, and scope.
+
+### Role Propagation
+
+fdsc-dashboard recognises two canonical roles:
+
+| Role | fdsc-dashboard | Apisix Dashboard |
+|---|---|---|
+| `admin` | Full access — create, update, delete across TIL / CCS / Policies; access to the embedded Apisix Dashboard. | Full access to routes, services, consumers, and plugins. |
+| `viewer` | Read-only access to all endpoints. The Apisix Dashboard navigation entry is **hidden**. | Read-only (if OIDC role mapping is configured accordingly). |
+
+Both applications resolve roles from the **same OIDC token claim**. The
+claim path is configurable per provider via `rolesClaimPath` in
+fdsc-dashboard's `AUTH_CONFIG_JSON` (defaults to `realm_access.roles` for
+Keycloak compatibility).
+
+**Important:** fdsc-dashboard does **not** forward its own tokens to the
+Apisix Dashboard. The embedded dashboard authenticates directly with the
+IdP via its own OIDC redirect flow. This avoids the security pitfall of
+injecting a dashboard-issued token into a third-party application. Role
+consistency is guaranteed because both apps read the same claim from
+tokens issued by the same IdP.
+
 ## Project Structure
 
 ```
@@ -432,11 +610,17 @@ src/
     en.json            # English translations
   composables/
     useTheme.ts        # Theme toggle composable
+    useApisix.ts       # Apisix Dashboard visibility composable
+  apisix/
+    config.ts          # Apisix configuration loader (runtime + build-time)
+    constants.ts       # Named constants (paths, route names, env vars)
+    types.ts           # ApisixConfig type definition
   views/
     HomeView.vue       # Landing page
     til/               # Trusted Issuers List views
     ccs/               # Credentials Config Service views
     policies/          # ODRL Policy views
+    apisix/            # Embedded Apisix Dashboard (iframe view)
 mocks/                 # Mock backend data and nginx configs
 ```
 
@@ -456,8 +640,9 @@ This dashboard is designed to work with the following FIWARE services:
 - **TIR** – Global Trusted Issuers Registry (EBSI-compatible, same repo as TIL)
 - **CCS** – [Credentials Config Service](https://github.com/FIWARE/credentials-config-service)
 - **Policies** – [ODRL-PAP](https://github.com/SEAMWARE/odrl-pap)
+- **Apisix Dashboard** – [Apache APISIX Dashboard](https://github.com/apache/apisix-dashboard) (embedded via same-origin reverse proxy at `/apisix-dashboard/`)
 
-API clients are kept in sync with the OpenAPI specifications published by these services.
+API clients for TIL, TIR, CCS, and Policies are kept in sync with the OpenAPI specifications published by those services. The Apisix Dashboard is embedded as-is — no API client is generated for it.
 
 ## CI / CD Pipeline
 
