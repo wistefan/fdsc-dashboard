@@ -16,7 +16,17 @@ RUN npm run generate:api && npm run build
 FROM nginx:alpine AS production
 
 # `envsubst` (from gettext) is needed by 10-render-config.sh to substitute
-# AUTH_CONFIG_JSON into public/config.template.js at container start.
+# runtime configuration variables into public/config.template.js at container
+# start. The following environment variables are supported:
+#
+# Authentication:
+#   AUTH_CONFIG_JSON  — JSON string with provider config (default: disabled).
+#
+# API service URLs (each defaults to empty → frontend uses /api/<svc> proxy):
+#   TIL_API_URL   — Trusted Issuers List service base URL.
+#   TIR_API_URL   — Trusted Issuers Registry service base URL.
+#   CCS_API_URL   — Credentials Config Service base URL.
+#   ODRL_API_URL  — ODRL Policy service base URL.
 RUN apk add --no-cache gettext
 
 # Copy custom nginx config
