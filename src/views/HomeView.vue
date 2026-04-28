@@ -254,6 +254,49 @@
           </v-card-actions>
         </v-card>
       </v-col>
+
+      <!-- Apisix Dashboard card (visible to admins when configured) -->
+      <v-col
+        v-if="apisixVisible"
+        cols="12"
+        md="4"
+      >
+        <v-card
+          hover
+          class="resource-card"
+          data-testid="apisix-card"
+        >
+          <v-card-item>
+            <template #prepend>
+              <v-icon
+                size="48"
+                color="primary"
+              >
+                mdi-traffic-light
+              </v-icon>
+            </template>
+            <v-card-title class="text-h6">
+              {{ t('nav.apisix') }}
+            </v-card-title>
+            <v-card-subtitle>
+              {{ t('home.apisixDescription') }}
+            </v-card-subtitle>
+          </v-card-item>
+
+          <v-card-actions>
+            <v-btn
+              variant="text"
+              color="primary"
+              :to="{ name: APISIX_DASHBOARD_ROUTE_NAME }"
+            >
+              {{ t('home.viewAll') }}
+              <v-icon end>
+                mdi-arrow-right
+              </v-icon>
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-col>
     </v-row>
   </div>
 </template>
@@ -264,11 +307,14 @@ import { useI18n } from 'vue-i18n'
 import { useTilStore } from '@/stores/til'
 import { useCcsStore } from '@/stores/ccs'
 import { usePoliciesStore } from '@/stores/policies'
+import { useApisix } from '@/composables/useApisix'
+import { APISIX_DASHBOARD_ROUTE_NAME } from '@/apisix/constants'
 
 const { t } = useI18n()
 const tilStore = useTilStore()
 const ccsStore = useCcsStore()
 const policiesStore = usePoliciesStore()
+const { isVisible: apisixVisible } = useApisix()
 
 /**
  * Fetch initial resource counts from all three stores on mount.

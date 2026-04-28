@@ -190,6 +190,17 @@
           :title="t('nav.policies')"
           to="/policies"
         />
+        <v-divider
+          v-if="apisixVisible"
+          class="my-2"
+        />
+        <v-list-item
+          v-if="apisixVisible"
+          prepend-icon="mdi-traffic-light"
+          :title="t('nav.apisix')"
+          :to="{ name: APISIX_DASHBOARD_ROUTE_NAME }"
+          data-testid="nav-apisix"
+        />
       </v-list>
     </v-navigation-drawer>
 
@@ -208,13 +219,16 @@ import { useI18n } from 'vue-i18n'
 import { useTheme } from '@/composables/useTheme'
 import { useLocale } from '@/composables/useLocale'
 import { useAuth } from '@/composables/useAuth'
+import { useApisix } from '@/composables/useApisix'
 import { useAuthStore } from '@/stores/auth'
 import { ROLE_ADMIN, ROLE_VIEWER } from '@/auth/constants'
+import { APISIX_DASHBOARD_ROUTE_NAME } from '@/apisix/constants'
 
 const { t } = useI18n()
 const { isDark, toggleTheme, initTheme } = useTheme()
 const { initLocale } = useLocale()
 const { token, isAuthenticated, isAuthEnabled, setToken, clearToken, initAuth } = useAuth()
+const { isVisible: apisixVisible } = useApisix()
 const authStore = useAuthStore()
 
 /**
