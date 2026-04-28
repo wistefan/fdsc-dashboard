@@ -18,8 +18,8 @@
  * Unit tests for `src/api/config.ts`.
  *
  * Covers:
- *   - Every generated OpenAPI client's `BASE` is sourced from its
- *     `VITE_*_API_URL` env var or its default `/api/*` proxy prefix.
+ *   - Every generated OpenAPI client's `BASE` is set to its fixed
+ *     `/api/<service>` BFF proxy path.
  *   - Every generated OpenAPI client's `TOKEN` is set to the **same**
  *     `authTokenResolver` function reference.
  *   - The resolver resolves to whatever `getAuthTokenSync` currently returns,
@@ -29,9 +29,9 @@
  * `@/composables/useAuth` is mocked so `getAuthTokenSync` is controllable from
  * each test without touching module-scoped reactive state.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-/* ── Controllable mock for the auth composable ─────────────────────── */
+/* -- Controllable mock for the auth composable ----------------------------- */
 
 /**
  * Holds the value returned by the mocked `getAuthTokenSync`. Tests mutate this
@@ -44,7 +44,7 @@ vi.mock('@/composables/useAuth', () => ({
   getAuthTokenSync: () => mockTokenHolder.value,
 }))
 
-/* ── Imports under test ─────────────────────────────────────────────── */
+/* -- Imports under test ---------------------------------------------------- */
 
 import { configureApiClients, authTokenResolver } from '@/api/config'
 import { OpenAPI as TilOpenAPI } from '@/api/generated/til'
@@ -52,7 +52,7 @@ import { OpenAPI as TirOpenAPI } from '@/api/generated/tir'
 import { OpenAPI as CcsOpenAPI } from '@/api/generated/ccs'
 import { OpenAPI as OdrlOpenAPI } from '@/api/generated/odrl'
 
-/* ── Test fixtures ─────────────────────────────────────────────────── */
+/* -- Test fixtures --------------------------------------------------------- */
 
 /**
  * The four generated OpenAPI client singletons paired with their short name.
@@ -65,22 +65,21 @@ const CLIENTS = [
   ['odrl', OdrlOpenAPI] as const,
 ]
 
-/** Default proxy prefixes that match the values in `src/api/config.ts`. */
-const DEFAULT_BASES = {
+/** Fixed BFF proxy paths that match the constants in `src/api/config.ts`. */
+const PROXY_PATHS = {
   til: '/api/til',
   tir: '/api/tir',
   ccs: '/api/ccs',
   odrl: '/api/odrl',
 } as const
 
-/* ── Tests ─────────────────────────────────────────────────────────── */
+/* -- Tests ----------------------------------------------------------------- */
 
 describe('configureApiClients', () => {
   beforeEach(() => {
     mockTokenHolder.value = ''
-    vi.unstubAllEnvs()
-    // Reset the client singletons to a known state so leaked env-var stubs
-    // from earlier tests cannot contaminate this one.
+    // Reset the client singletons to a known state so earlier tests
+    // cannot contaminate this one.
     TilOpenAPI.BASE = ''
     TirOpenAPI.BASE = ''
     CcsOpenAPI.BASE = ''
@@ -91,32 +90,14 @@ describe('configureApiClients', () => {
     OdrlOpenAPI.TOKEN = undefined
   })
 
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
   describe('BASE URL configuration', () => {
     it.each(CLIENTS)(
-      'falls back to the default proxy prefix for the %s client when the env var is unset',
+      'sets the %s client BASE to its fixed BFF proxy path',
       (name, client) => {
         configureApiClients()
-        expect(client.BASE).toBe(DEFAULT_BASES[name])
+        expect(client.BASE).toBe(PROXY_PATHS[name])
       },
     )
-
-    it('uses VITE_*_API_URL env vars when provided', () => {
-      vi.stubEnv('VITE_TIL_API_URL', 'https://til.example.com')
-      vi.stubEnv('VITE_TIR_API_URL', 'https://tir.example.com')
-      vi.stubEnv('VITE_CCS_API_URL', 'https://ccs.example.com')
-      vi.stubEnv('VITE_ODRL_API_URL', 'https://odrl.example.com')
-
-      configureApiClients()
-
-      expect(TilOpenAPI.BASE).toBe('https://til.example.com')
-      expect(TirOpenAPI.BASE).toBe('https://tir.example.com')
-      expect(CcsOpenAPI.BASE).toBe('https://ccs.example.com')
-      expect(OdrlOpenAPI.BASE).toBe('https://odrl.example.com')
-    })
   })
 
   describe('TOKEN resolver wiring', () => {
