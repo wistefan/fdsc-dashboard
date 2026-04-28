@@ -267,5 +267,13 @@
     "createServiceSuccess": "Service created successfully",
     "deleteServiceSuccess": "Service deleted successfully",
     "deleteServiceError": "Failed to delete service"
+  },
+  "apisix": {
+    "iframeTitle": "Apache APISIX Dashboard",
+    "toolbarBack": "Back to dashboard",
+    "openInNewTab": "Open in new tab",
+    "notConfiguredTitle": "Apisix Dashboard not configured",
+    "notConfigured": "The Apisix Dashboard upstream URL is not set. Set the VITE_APISIX_DASHBOARD_URL environment variable for local development or APISIX_DASHBOARD_URL for production containers.",
+    "adminOnly": "Apisix Dashboard access requires the admin role."
   }
 }
