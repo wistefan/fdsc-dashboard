@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mock Apisix Dashboard</title>
+  <style>
+    /* Minimal styling — no external dependencies so it works offline / in CI */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 640px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      color: #333;
+      line-height: 1.6;
+    }
+    h1 { color: #e8433e; /* Apisix brand red */ }
+    .auth-box {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #f9f9f9;
+      word-break: break-all;
+    }
+    .auth-box strong { display: block; margin-bottom: 0.5rem; }
+    .none { color: #999; font-style: italic; }
+  </style>
+</head>
+<body>
+  <h1>Mock Apisix Dashboard</h1>
+  <p>
+    This is a <strong>placeholder</strong> for the
+    <a href="https://apisix.apache.org/docs/dashboard/USER_GUIDE/">Apache APISIX Dashboard</a>.
+    In a production deployment this page is replaced by the real Apisix Dashboard
+    UI, which is reverse-proxied through the same origin so that SSO works
+    seamlessly.
+  </p>
+  <p>
+    If the reverse proxy is forwarding authentication headers you should see
+    the <code>Authorization</code> value below.
+  </p>
+
+  <div class="auth-box" id="auth-info">
+    <strong>Authorization header</strong>
+    <span class="none">Checking…</span>
+  </div>
+
+  <!--
+    Attempt to read the Authorization header that the proxy may have forwarded.
+    Browsers do not expose request headers to inline scripts, so we make a
+    same-origin fetch to a known endpoint and check for a response header the
+    mock nginx is configured to echo back (X-Forwarded-Authorization).  If
+    that is unavailable we fall back to "none detected".
+  -->
+  <script>
+    (function () {
+      var el = document.getElementById('auth-info')
+
+      // Try fetching health.json on the same path prefix — the mock nginx
+      // echoes X-Forwarded-Authorization as a response header for debugging.
+      fetch('/apisix-dashboard/health.json')
+        .then(function (res) {
+          var hdr = res.headers.get('X-Forwarded-Authorization')
+          if (hdr) {
+            el.innerHTML =
+              '<strong>Authorization header</strong>' +
+              '<code>' + hdr + '</code>'
+          } else {
+            el.innerHTML =
+              '<strong>Authorization header</strong>' +
+              '<span class="none">None detected (no X-Forwarded-Authorization response header)</span>'
+          }
+        })
+        .catch(function () {
+          el.innerHTML =
+            '<strong>Authorization header</strong>' +
+            '<span class="none">Could not reach /apisix-dashboard/health.json</span>'
+        })
+    })()
+  </script>
+</body>
+</html>
