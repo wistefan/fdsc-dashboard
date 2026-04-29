@@ -23,14 +23,6 @@ declare module '*.vue' {
 }
 
 interface ImportMetaEnv {
-  /** Base URL for the Trusted Issuers List management API. */
-  readonly VITE_TIL_API_URL: string
-  /** Base URL for the Trusted Issuers Registry (EBSI) API. */
-  readonly VITE_TIR_API_URL: string
-  /** Base URL for the Credentials Config Service API. */
-  readonly VITE_CCS_API_URL: string
-  /** Base URL for the ODRL-PAP API. */
-  readonly VITE_ODRL_API_URL: string
   /**
    * Optional build-time seed for the JWT sent as `Authorization: Bearer …`
    * on every API request. When set, the value is loaded at startup unless a
@@ -61,16 +53,5 @@ interface ImportMeta {
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 interface Window {
   __AUTH_CONFIG__?: unknown
-  /**
-   * Runtime-injected API URL configuration.
-   *
-   * Set by the nginx entrypoint script (`10-render-config.sh`) when the
-   * container starts. Contains per-service base URLs built from `TIL_API_URL`,
-   * `TIR_API_URL`, `CCS_API_URL`, and `ODRL_API_URL` environment variables.
-   * Empty strings indicate that the default proxy path should be used.
-   *
-   * When absent (e.g. in local dev mode), `configureApiClients()` falls back
-   * to `import.meta.env.VITE_*` variables and then to the default proxy paths.
-   */
-  __API_CONFIG__?: unknown
+  __SERVICES_CONFIG__?: unknown
 }

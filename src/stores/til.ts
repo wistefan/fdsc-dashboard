@@ -17,17 +17,18 @@
 /**
  * Pinia store for Trusted Issuers List (TIL) state management.
  *
- * Uses the TIR (EBSI-compatible) API for listing issuers (since the TIL
- * management API has no list endpoint) and the TIL management API for
- * fetching issuer details by DID.
+ * All requests — listing, detail, and CRUD — go through the TIL BFF proxy
+ * (`/api/til`). The list endpoint (`/v4/issuers/`) is the same EBSI-compatible
+ * path that the TIR spec defines, but it is served by the TIL service as well.
+ * Response types are imported from the TIR generated client since the TIL
+ * spec does not declare the list endpoint.
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { TirService } from '@/api/generated/tir'
-import { IssuerService } from '@/api/generated/til'
+import { IssuerService, OpenAPI as TilOpenAPI } from '@/api/generated/til'
+import { request as tilRequest } from '@/api/generated/til/core/request'
 import type { IssuersResponse, IssuerEntry } from '@/api/generated/tir'
 import type { TrustedIssuer } from '@/api/generated/til'
-import { ApiError } from '@/api/generated/tir'
 import { ApiError as TilApiError } from '@/api/generated/til'
 
 /** Default number of issuers per page. */
@@ -60,7 +61,7 @@ export const useTilStore = defineStore('til', () => {
   const totalPages = computed(() => Math.max(1, Math.ceil(totalIssuers.value / pageSize.value)))
 
   /**
-   * Fetch a page of issuers from the TIR API.
+   * Fetch a page of issuers from the TIL API.
    *
    * @param page - Zero-based page index. Defaults to `currentPage`.
    * @param size - Number of items per page. Defaults to `pageSize`.
@@ -74,9 +75,16 @@ export const useTilStore = defineStore('til', () => {
 
     try {
       const pageAfter = requestedPage > 0 ? requestedPage * requestedSize : undefined
-      const response: IssuersResponse = await TirService.getIssuersV4({
-        pageSize: requestedSize,
-        pageAfter,
+      const response: IssuersResponse = await tilRequest(TilOpenAPI, {
+        method: 'GET',
+        url: '/v4/issuers/',
+        query: {
+          'page[size]': requestedSize,
+          'page[after]': pageAfter,
+        },
+        errors: {
+          400: 'Bad Request Error',
+        },
       })
 
       issuers.value = response.items ?? []
@@ -84,7 +92,7 @@ export const useTilStore = defineStore('til', () => {
       pageSize.value = requestedSize
       currentPage.value = requestedPage
     } catch (error) {
-      listError.value = error instanceof ApiError ? error.message : String(error)
+      listError.value = error instanceof TilApiError ? error.message : String(error)
       issuers.value = []
       totalIssuers.value = 0
     } finally {
@@ -105,7 +113,7 @@ export const useTilStore = defineStore('til', () => {
     try {
       selectedIssuer.value = await IssuerService.getIssuer({ did })
     } catch (error) {
-      detailError.value = error instanceof ApiError ? error.message : String(error)
+      detailError.value = error instanceof TilApiError ? error.message : String(error)
     } finally {
       detailLoading.value = false
     }
@@ -126,7 +134,7 @@ export const useTilStore = defineStore('til', () => {
       return true
     } catch (error) {
       saveError.value =
-        error instanceof ApiError || error instanceof TilApiError
+        error instanceof TilApiError
           ? error.message
           : String(error)
       return false
@@ -152,7 +160,7 @@ export const useTilStore = defineStore('til', () => {
       return true
     } catch (error) {
       saveError.value =
-        error instanceof ApiError || error instanceof TilApiError
+        error instanceof TilApiError
           ? error.message
           : String(error)
       return false
@@ -177,7 +185,7 @@ export const useTilStore = defineStore('til', () => {
       return true
     } catch (error) {
       saveError.value =
-        error instanceof ApiError || error instanceof TilApiError
+        error instanceof TilApiError
           ? error.message
           : String(error)
       return false

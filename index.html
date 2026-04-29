@@ -8,10 +8,10 @@
     <!--
       Runtime auth configuration. Loaded *before* the application bundle so
       that `window.__AUTH_CONFIG__` is populated by the time
-      `src/auth/config.ts#loadAuthConfig()` runs. In production this file is
-      rendered from `public/config.template.js` by the nginx container
-      entrypoint; in local development it is a no-op stub that leaves the
-      fallback path (`VITE_AUTH_PROVIDERS`) active.
+      `src/auth/config.ts#loadAuthConfig()` runs. In production the BFF
+      server dynamically serves this file from the AUTH_CONFIG_JSON env var
+      (see server/src/runtime-config.ts); in local development it is a
+      no-op stub that leaves the fallback path (`VITE_AUTH_PROVIDERS`) active.
     -->
     <script src="/config.js"></script>
   </head>

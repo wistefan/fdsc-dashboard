@@ -6,6 +6,7 @@
   "nav": {
     "home": "Home",
     "til": "Trusted Issuers",
+    "tir": "Participants List",
     "ccs": "Credentials Config",
     "policies": "Policies"
   },
@@ -57,6 +58,7 @@
     "viewAll": "View All",
     "resourceCount": "resources",
     "tilDescription": "Manage trusted issuer entries",
+    "tirDescription": "Browse registered participants",
     "ccsDescription": "Configure credential services",
     "policiesDescription": "Define ODRL access policies"
   },
@@ -109,6 +111,21 @@
     "createSuccess": "Issuer created successfully",
     "updateSuccess": "Issuer updated successfully",
     "allowedValuesHint": "Comma-separated values"
+  },
+  "tir": {
+    "title": "Trusted Issuers Registry",
+    "listTitle": "Participants List",
+    "detailTitle": "Participant Details",
+    "did": "DID",
+    "attributes": "Attributes",
+    "attribute": "Attribute",
+    "issuerType": "Issuer Type",
+    "hash": "Hash",
+    "body": "Body",
+    "tao": "TAO",
+    "rootTao": "Root TAO",
+    "noParticipants": "No participants found",
+    "noAttributes": "No attributes available"
   },
   "ccs": {
     "title": "Credentials Config Service",

@@ -26,24 +26,25 @@ import { useTilStore } from '@/stores/til'
 
 /* ── Mock the API services ─────────────────────────────────────────── */
 
-const mockGetIssuersV4 = vi.fn()
-const mockGetIssuer = vi.fn()
-const mockCreateTrustedIssuer = vi.fn()
-const mockUpdateIssuer = vi.fn()
-const mockDeleteIssuerById = vi.fn()
+const {
+  mockTilRequest,
+  mockGetIssuer,
+  mockCreateTrustedIssuer,
+  mockUpdateIssuer,
+  mockDeleteIssuerById,
+  MOCK_TIL_OPENAPI,
+} = vi.hoisted(() => ({
+  mockTilRequest: vi.fn(),
+  mockGetIssuer: vi.fn(),
+  mockCreateTrustedIssuer: vi.fn(),
+  mockUpdateIssuer: vi.fn(),
+  mockDeleteIssuerById: vi.fn(),
+  /** Sentinel object representing the TIL OpenAPI config in assertions. */
+  MOCK_TIL_OPENAPI: { BASE: '/api/til' },
+}))
 
-vi.mock('@/api/generated/tir', () => ({
-  TirService: {
-    getIssuersV4: (...args: unknown[]) => mockGetIssuersV4(...args),
-  },
-  ApiError: class ApiError extends Error {
-    public readonly status: number
-    constructor(message: string, status = 500) {
-      super(message)
-      this.name = 'ApiError'
-      this.status = status
-    }
-  },
+vi.mock('@/api/generated/til/core/request', () => ({
+  request: (...args: unknown[]) => mockTilRequest(...args),
 }))
 
 vi.mock('@/api/generated/til', () => ({
@@ -53,6 +54,7 @@ vi.mock('@/api/generated/til', () => ({
     updateIssuer: (...args: unknown[]) => mockUpdateIssuer(...args),
     deleteIssuerById: (...args: unknown[]) => mockDeleteIssuerById(...args),
   },
+  OpenAPI: MOCK_TIL_OPENAPI,
   ApiError: class ApiError extends Error {
     public readonly status: number
     constructor(message: string, status = 500) {
@@ -124,14 +126,21 @@ describe('TIL Store', () => {
 
   describe('fetchIssuers', () => {
     it('should fetch issuers and update state on success', async () => {
-      mockGetIssuersV4.mockResolvedValue(MOCK_ISSUERS_RESPONSE)
+      mockTilRequest.mockResolvedValue(MOCK_ISSUERS_RESPONSE)
       const store = useTilStore()
 
       await store.fetchIssuers()
 
-      expect(mockGetIssuersV4).toHaveBeenCalledWith({
-        pageSize: 10,
-        pageAfter: undefined,
+      expect(mockTilRequest).toHaveBeenCalledWith(MOCK_TIL_OPENAPI, {
+        method: 'GET',
+        url: '/v4/issuers/',
+        query: {
+          'page[size]': 10,
+          'page[after]': undefined,
+        },
+        errors: {
+          400: 'Bad Request Error',
+        },
       })
       expect(store.issuers).toEqual(MOCK_ISSUERS_RESPONSE.items)
       expect(store.totalIssuers).toBe(2)
@@ -141,7 +150,7 @@ describe('TIL Store', () => {
 
     it('should set listLoading during fetch', async () => {
       let resolvePromise: (value: unknown) => void
-      mockGetIssuersV4.mockReturnValue(
+      mockTilRequest.mockReturnValue(
         new Promise((resolve) => {
           resolvePromise = resolve
         }),
@@ -157,14 +166,21 @@ describe('TIL Store', () => {
     })
 
     it('should use custom page and size parameters', async () => {
-      mockGetIssuersV4.mockResolvedValue(MOCK_ISSUERS_RESPONSE)
+      mockTilRequest.mockResolvedValue(MOCK_ISSUERS_RESPONSE)
       const store = useTilStore()
 
       await store.fetchIssuers(2, 5)
 
-      expect(mockGetIssuersV4).toHaveBeenCalledWith({
-        pageSize: 5,
-        pageAfter: 10,
+      expect(mockTilRequest).toHaveBeenCalledWith(MOCK_TIL_OPENAPI, {
+        method: 'GET',
+        url: '/v4/issuers/',
+        query: {
+          'page[size]': 5,
+          'page[after]': 10,
+        },
+        errors: {
+          400: 'Bad Request Error',
+        },
       })
       expect(store.currentPage).toBe(2)
       expect(store.pageSize).toBe(5)
@@ -174,7 +190,7 @@ describe('TIL Store', () => {
       ['ApiError', (() => { const e = new Error('Not Found'); e.name = 'ApiError'; return e })(), 'ApiError: Not Found'],
       ['generic error', new Error('Network failure'), 'Error: Network failure'],
     ])('should handle %s on fetch failure', async (_label, error, expectedMessage) => {
-      mockGetIssuersV4.mockRejectedValue(error)
+      mockTilRequest.mockRejectedValue(error)
       const store = useTilStore()
 
       await store.fetchIssuers()
@@ -321,7 +337,7 @@ describe('TIL Store', () => {
 
   describe('$reset', () => {
     it('should reset all state to initial values', async () => {
-      mockGetIssuersV4.mockResolvedValue(MOCK_ISSUERS_RESPONSE)
+      mockTilRequest.mockResolvedValue(MOCK_ISSUERS_RESPONSE)
       const store = useTilStore()
 
       // Populate state
@@ -349,7 +365,7 @@ describe('TIL Store', () => {
 
   describe('computed properties', () => {
     it('should compute isEmpty as false when issuers are loaded', async () => {
-      mockGetIssuersV4.mockResolvedValue(MOCK_ISSUERS_RESPONSE)
+      mockTilRequest.mockResolvedValue(MOCK_ISSUERS_RESPONSE)
       const store = useTilStore()
 
       await store.fetchIssuers()
@@ -365,7 +381,7 @@ describe('TIL Store', () => {
     })
 
     it('should compute totalPages correctly', async () => {
-      mockGetIssuersV4.mockResolvedValue({
+      mockTilRequest.mockResolvedValue({
         ...MOCK_ISSUERS_RESPONSE,
         total: 25,
       })

@@ -1,20 +1,15 @@
-version: "3.8"
-
 services:
   dashboard:
     build: .
     ports:
-      - "8080:80"
-    # Point the nginx reverse-proxy at the mock backends on the compose
-    # network.  NGINX_*_UPSTREAM vars feed into default.conf.template via
-    # 15-set-nginx-env.envsh.  TIL_API_URL etc. are intentionally left
-    # unset so the frontend falls back to the /api/<svc> proxy paths
-    # (the browser cannot resolve Docker-internal hostnames).
+      - "8080:3000"
+    # Point the BFF proxy at the mock backends on the compose network.
+    # The BFF forwards /api/{til,tir,ccs,odrl}/* to these upstream URLs.
     environment:
-      NGINX_TIL_UPSTREAM: http://mock-til:80
-      NGINX_TIR_UPSTREAM: http://mock-tir:80
-      NGINX_CCS_UPSTREAM: http://mock-ccs:80
-      NGINX_ODRL_UPSTREAM: http://mock-odrl:80
+      TIL_API_URL: http://mock-til:80
+      TIR_API_URL: http://mock-tir:80
+      CCS_API_URL: http://mock-ccs:80
+      ODRL_API_URL: http://mock-odrl:80
     depends_on:
       - mock-til
       - mock-tir

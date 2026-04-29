@@ -176,16 +176,25 @@
         />
         <v-divider class="my-2" />
         <v-list-item
+          v-if="services.til"
           prepend-icon="mdi-shield-check"
           :title="t('nav.til')"
           to="/til"
         />
         <v-list-item
+          v-if="services.tir"
+          prepend-icon="mdi-account-group"
+          :title="t('nav.tir')"
+          to="/tir"
+        />
+        <v-list-item
+          v-if="services.ccs"
           prepend-icon="mdi-file-certificate"
           :title="t('nav.ccs')"
           to="/ccs"
         />
         <v-list-item
+          v-if="services.odrl"
           prepend-icon="mdi-gavel"
           :title="t('nav.policies')"
           to="/policies"
@@ -208,6 +217,7 @@ import { useI18n } from 'vue-i18n'
 import { useTheme } from '@/composables/useTheme'
 import { useLocale } from '@/composables/useLocale'
 import { useAuth } from '@/composables/useAuth'
+import { useServices } from '@/composables/useServices'
 import { useAuthStore } from '@/stores/auth'
 import { ROLE_ADMIN, ROLE_VIEWER } from '@/auth/constants'
 
@@ -215,6 +225,7 @@ const { t } = useI18n()
 const { isDark, toggleTheme, initTheme } = useTheme()
 const { initLocale } = useLocale()
 const { token, isAuthenticated, isAuthEnabled, setToken, clearToken, initAuth } = useAuth()
+const services = useServices()
 const authStore = useAuthStore()
 
 /**

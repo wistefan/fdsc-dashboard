@@ -1,0 +1,59 @@
+/*
+ * Copyright 2026 Seamless Middleware Technologies S.L and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/**
+ * Runtime configuration endpoint for the BFF server.
+ *
+ * Serves a `/config.js` JavaScript file that injects auth configuration
+ * into the browser's `window` object. This replaces the previous approach
+ * of using shell scripts to render config templates at container startup.
+ */
+
+import { Router } from 'express'
+import { type AppConfig, getEnabledServices } from './config.js'
+
+/** Content-Type header value for JavaScript responses. */
+const CONTENT_TYPE_JAVASCRIPT = 'application/javascript'
+
+/** HTTP status code for successful responses. */
+const HTTP_OK = 200
+
+/**
+ * Creates an Express router that serves runtime configuration as JavaScript.
+ *
+ * `GET /config.js` returns a JavaScript snippet that assigns the auth
+ * configuration to `window.__AUTH_CONFIG__` and the per-service availability
+ * flags to `window.__SERVICES_CONFIG__`. The browser loads this script
+ * before the SPA boots, making both configs available at runtime without
+ * requiring a rebuild.
+ *
+ * @param config - Application configuration containing auth and service config
+ * @returns Express router with the `/config.js` endpoint mounted
+ */
+export function createRuntimeConfigRouter(config: AppConfig): Router {
+  const router = Router()
+  const servicesJson = JSON.stringify(getEnabledServices(config))
+
+  router.get('/config.js', (_req, res) => {
+    const script = [
+      `window.__AUTH_CONFIG__ = ${config.authConfigJson};`,
+      `window.__SERVICES_CONFIG__ = ${servicesJson};`,
+    ].join('\n')
+    res.status(HTTP_OK).type(CONTENT_TYPE_JAVASCRIPT).send(script)
+  })
+
+  return router
+}
