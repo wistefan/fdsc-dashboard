@@ -73,6 +73,11 @@ mountStaticServing(app, staticDir)
 app.listen(config.port, () => {
   console.log(`BFF server listening on port ${config.port}`)
   console.log(`Static files served from: ${staticDir}`)
+  console.log(`Proxy targets:`)
+  console.log(`  /api/til -> ${config.tilApiUrl}`)
+  console.log(`  /api/tir -> ${config.tirApiUrl}`)
+  console.log(`  /api/ccs -> ${config.ccsApiUrl}`)
+  console.log(`  /api/odrl -> ${config.odrlApiUrl}`)
 })
 
 export { app }

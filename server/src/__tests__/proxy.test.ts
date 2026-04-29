@@ -176,4 +176,85 @@ describe('mountProxyMiddleware', () => {
     expect(targets).toContain('http://custom-ccs:9002')
     expect(targets).toContain('http://custom-odrl:9003')
   })
+
+  it.each([
+    { service: 'TIL', targetUrl: 'http://til:8080' },
+    { service: 'TIR', targetUrl: 'http://tir:8080' },
+    { service: 'CCS', targetUrl: 'http://ccs:8080' },
+    { service: 'ODRL', targetUrl: 'http://odrl:8080' },
+  ])(
+    'registers on.error, on.proxyReq, and on.proxyRes handlers for $service proxy',
+    ({ targetUrl }) => {
+      const app = express()
+      mountProxyMiddleware(app, createTestConfig())
+
+      const matchingCall = mockedCreateProxy.mock.calls.find(
+        (args) => (args[0] as Record<string, unknown>)?.target === targetUrl,
+      )
+      expect(matchingCall).toBeDefined()
+
+      const options = matchingCall![0] as Record<string, unknown>
+      const on = options.on as Record<string, unknown>
+      expect(on).toBeDefined()
+      expect(typeof on.error).toBe('function')
+      expect(typeof on.proxyReq).toBe('function')
+      expect(typeof on.proxyRes).toBe('function')
+    },
+  )
+
+  it('error handler sends 502 with JSON body when upstream is unreachable', () => {
+    const app = express()
+    mountProxyMiddleware(app, createTestConfig())
+
+    const options = mockedCreateProxy.mock.calls[0]![0] as Record<string, unknown>
+    const onError = (options.on as Record<string, (...args: unknown[]) => void>).error
+
+    const fakeReq = { method: 'GET', url: '/v4/issuers' }
+    let writtenStatus: number | undefined
+    let writtenBody = ''
+    const fakeRes = {
+      writeHead: (status: number) => {
+        writtenStatus = status
+      },
+      headersSent: false,
+      end: (body: string) => {
+        writtenBody = body
+      },
+    }
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    onError(new Error('ECONNREFUSED'), fakeReq, fakeRes)
+    consoleSpy.mockRestore()
+
+    const EXPECTED_BAD_GATEWAY = 502
+    expect(writtenStatus).toBe(EXPECTED_BAD_GATEWAY)
+
+    const parsed = JSON.parse(writtenBody)
+    expect(parsed.error).toBe('Bad Gateway')
+    expect(parsed.message).toContain('ECONNREFUSED')
+  })
+
+  it('error handler does not write headers when they are already sent', () => {
+    const app = express()
+    mountProxyMiddleware(app, createTestConfig())
+
+    const options = mockedCreateProxy.mock.calls[0]![0] as Record<string, unknown>
+    const onError = (options.on as Record<string, (...args: unknown[]) => void>).error
+
+    const fakeReq = { method: 'GET', url: '/v4/issuers' }
+    let writeHeadCalled = false
+    const fakeRes = {
+      writeHead: () => {
+        writeHeadCalled = true
+      },
+      headersSent: true,
+      end: () => {},
+    }
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    onError(new Error('ECONNREFUSED'), fakeReq, fakeRes)
+    consoleSpy.mockRestore()
+
+    expect(writeHeadCalled).toBe(false)
+  })
 })

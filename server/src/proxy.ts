@@ -22,9 +22,13 @@
  * headers — including `Authorization` — are forwarded transparently.
  */
 
-import { type Express } from 'express'
+import { type Express, type Response } from 'express'
 import { createProxyMiddleware, type Options } from 'http-proxy-middleware'
+import type { IncomingMessage } from 'node:http'
 import type { AppConfig } from './config.js'
+
+/** HTTP status code returned when a proxy request fails to reach the upstream. */
+const BAD_GATEWAY_STATUS = 502
 
 /** API path prefix for Trusted Issuers List routes. */
 const TIL_API_PATH = '/api/til'
@@ -56,6 +60,9 @@ interface ProxyRoute {
  * forwarding to the target, so `/api/til/v4/issuers` becomes `/v4/issuers`
  * at the upstream.
  *
+ * Includes error, request, and response logging so that proxy failures
+ * are visible in server logs rather than silently swallowed.
+ *
  * @param route - The proxy route descriptor
  * @returns http-proxy-middleware options
  */
@@ -66,8 +73,33 @@ function createProxyOptions(route: ProxyRoute): Options {
     pathRewrite: {
       [`^${route.path}`]: '',
     },
-    // Forward all headers (including Authorization) transparently
-    // by not modifying the proxy request headers
+    on: {
+      proxyReq: (_proxyReq, req) => {
+        console.log(`[proxy] ${req.method} ${req.url} -> ${route.target}`)
+      },
+      proxyRes: (proxyRes, req) => {
+        console.log(
+          `[proxy] ${req.method} ${req.url} <- ${route.target} ${proxyRes.statusCode}`,
+        )
+      },
+      error: (err: Error, req: IncomingMessage, res: unknown) => {
+        console.error(
+          `[proxy] ${req.method} ${req.url} -> ${route.target} failed: ${err.message}`,
+        )
+        if (res && typeof res === 'object' && 'writeHead' in res) {
+          const httpRes = res as Response
+          if (!httpRes.headersSent) {
+            httpRes.writeHead(BAD_GATEWAY_STATUS, { 'Content-Type': 'application/json' })
+          }
+          httpRes.end(
+            JSON.stringify({
+              error: 'Bad Gateway',
+              message: `Upstream ${route.target} is unreachable: ${err.message}`,
+            }),
+          )
+        }
+      },
+    },
   }
 }
 
