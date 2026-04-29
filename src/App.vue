@@ -25,6 +25,7 @@
       <v-app-bar-title>{{ t('app.title') }}</v-app-bar-title>
       <v-spacer />
       <v-btn
+        v-if="!isAuthEnabled"
         icon
         :aria-label="t('auth.toggle')"
         @click="openAuthDialog"
