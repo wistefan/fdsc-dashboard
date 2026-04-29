@@ -36,7 +36,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadConfig } from './config.js'
+import { loadConfig, getEnabledServices } from './config.js'
 import { createHealthRouter } from './health.js'
 import { createLogger } from './logger.js'
 import { mountProxyMiddleware } from './proxy.js'
@@ -72,14 +72,16 @@ mountProxyMiddleware(app, config, logger)
 const staticDir = path.resolve(__dirname, config.staticDir)
 mountStaticServing(app, staticDir)
 
+const services = getEnabledServices(config)
+
 app.listen(config.port, () => {
   logger.info(`BFF server listening on port ${config.port}`)
   logger.info(`Static files served from: ${staticDir}`)
   logger.info(`Proxy targets:`)
-  logger.info(`  /api/til -> ${config.tilApiUrl}`)
-  logger.info(`  /api/tir -> ${config.tirApiUrl}`)
-  logger.info(`  /api/ccs -> ${config.ccsApiUrl}`)
-  logger.info(`  /api/odrl -> ${config.odrlApiUrl}`)
+  if (services.til) logger.info(`  /api/til -> ${config.tilApiUrl}`)
+  if (services.tir) logger.info(`  /api/tir -> ${config.tirApiUrl}`)
+  if (services.ccs) logger.info(`  /api/ccs -> ${config.ccsApiUrl}`)
+  if (services.odrl) logger.info(`  /api/odrl -> ${config.odrlApiUrl}`)
 })
 
 export { app }

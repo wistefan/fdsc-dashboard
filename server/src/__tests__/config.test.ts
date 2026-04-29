@@ -23,23 +23,11 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { parsePort, loadConfig } from '../config.js'
+import { parsePort, loadConfig, getEnabledServices } from '../config.js'
 import { parseLogLevel } from '../logger.js'
 
 /** Default port returned when PORT env var is missing or invalid. */
 const DEFAULT_PORT = 3000
-
-/** Default upstream URL for TIL service. */
-const DEFAULT_TIL_API_URL = 'http://til-service:8080'
-
-/** Default upstream URL for TIR service. */
-const DEFAULT_TIR_API_URL = 'http://tir-service:8080'
-
-/** Default upstream URL for CCS service. */
-const DEFAULT_CCS_API_URL = 'http://ccs-service:8080'
-
-/** Default upstream URL for ODRL service. */
-const DEFAULT_ODRL_API_URL = 'http://odrl-service:8080'
 
 /** Default auth config JSON. */
 const DEFAULT_AUTH_CONFIG_JSON = '{"providers":[]}'
@@ -81,10 +69,10 @@ describe('loadConfig', () => {
 
     expect(config).toEqual({
       port: DEFAULT_PORT,
-      tilApiUrl: DEFAULT_TIL_API_URL,
-      tirApiUrl: DEFAULT_TIR_API_URL,
-      ccsApiUrl: DEFAULT_CCS_API_URL,
-      odrlApiUrl: DEFAULT_ODRL_API_URL,
+      tilApiUrl: '',
+      tirApiUrl: '',
+      ccsApiUrl: '',
+      odrlApiUrl: '',
       authConfigJson: DEFAULT_AUTH_CONFIG_JSON,
       staticDir: DEFAULT_STATIC_DIR,
       logLevel: 'info',
@@ -172,4 +160,49 @@ describe('parseLogLevel', () => {
   ])('handles case-insensitive and trimmed input "$input"', ({ input, expected }) => {
     expect(parseLogLevel(input)).toBe(expected)
   })
+})
+
+describe('getEnabledServices', () => {
+  it('marks all services as disabled when no URLs are configured', () => {
+    const config = loadConfig({})
+    expect(getEnabledServices(config)).toEqual({
+      til: false,
+      tir: false,
+      ccs: false,
+      odrl: false,
+    })
+  })
+
+  it('marks all services as enabled when all URLs are configured', () => {
+    const config = loadConfig({
+      TIL_API_URL: 'http://til:8080',
+      TIR_API_URL: 'http://tir:8080',
+      CCS_API_URL: 'http://ccs:8080',
+      ODRL_API_URL: 'http://odrl:8080',
+    })
+    expect(getEnabledServices(config)).toEqual({
+      til: true,
+      tir: true,
+      ccs: true,
+      odrl: true,
+    })
+  })
+
+  it.each([
+    { envVar: 'TIL_API_URL', service: 'til' },
+    { envVar: 'TIR_API_URL', service: 'tir' },
+    { envVar: 'CCS_API_URL', service: 'ccs' },
+    { envVar: 'ODRL_API_URL', service: 'odrl' },
+  ])(
+    'enables only $service when only $envVar is set',
+    ({ envVar, service }) => {
+      const config = loadConfig({ [envVar]: 'http://example:8080' })
+      const services = getEnabledServices(config)
+      expect(services[service as keyof typeof services]).toBe(true)
+      const otherServices = Object.entries(services).filter(([k]) => k !== service)
+      for (const [, enabled] of otherServices) {
+        expect(enabled).toBe(false)
+      }
+    },
+  )
 })

@@ -26,6 +26,7 @@
     <v-row>
       <!-- Trusted Issuers card -->
       <v-col
+        v-if="services.til"
         cols="12"
         md="3"
       >
@@ -103,6 +104,7 @@
 
       <!-- Participants List card -->
       <v-col
+        v-if="services.tir"
         cols="12"
         md="3"
       >
@@ -170,6 +172,7 @@
 
       <!-- Credentials Config card -->
       <v-col
+        v-if="services.ccs"
         cols="12"
         md="3"
       >
@@ -247,6 +250,7 @@
 
       <!-- ODRL Policies card -->
       <v-col
+        v-if="services.odrl"
         cols="12"
         md="3"
       >
@@ -332,25 +336,27 @@ import { useTilStore } from '@/stores/til'
 import { useTirStore } from '@/stores/tir'
 import { useCcsStore } from '@/stores/ccs'
 import { usePoliciesStore } from '@/stores/policies'
+import { useServices } from '@/composables/useServices'
 
 const { t } = useI18n()
+const services = useServices()
 const tilStore = useTilStore()
 const tirStore = useTirStore()
 const ccsStore = useCcsStore()
 const policiesStore = usePoliciesStore()
 
 /**
- * Fetch initial resource counts from all three stores on mount.
+ * Fetch initial resource counts from enabled stores on mount.
  * Uses a minimal page size of 1 to reduce payload while still
  * obtaining the total count from the API response.
  */
 onMounted(() => {
   /** Minimum page size to fetch only the total count. */
   const MINIMAL_PAGE_SIZE = 1
-  tilStore.fetchIssuers(0, MINIMAL_PAGE_SIZE)
-  tirStore.fetchParticipants(0, MINIMAL_PAGE_SIZE)
-  ccsStore.fetchServices(0, MINIMAL_PAGE_SIZE)
-  policiesStore.fetchPolicies(0, MINIMAL_PAGE_SIZE)
+  if (services.til) tilStore.fetchIssuers(0, MINIMAL_PAGE_SIZE)
+  if (services.tir) tirStore.fetchParticipants(0, MINIMAL_PAGE_SIZE)
+  if (services.ccs) ccsStore.fetchServices(0, MINIMAL_PAGE_SIZE)
+  if (services.odrl) policiesStore.fetchPolicies(0, MINIMAL_PAGE_SIZE)
 })
 </script>
 

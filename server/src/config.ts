@@ -27,18 +27,6 @@ import { type LogLevel, parseLogLevel } from './logger.js'
 /** Default port the BFF server listens on. */
 const DEFAULT_PORT = 3000
 
-/** Default upstream URL for the Trusted Issuers List service. */
-const DEFAULT_TIL_API_URL = 'http://til-service:8080'
-
-/** Default upstream URL for the Trusted Issuers Registry service. */
-const DEFAULT_TIR_API_URL = 'http://tir-service:8080'
-
-/** Default upstream URL for the Credentials Config Service. */
-const DEFAULT_CCS_API_URL = 'http://ccs-service:8080'
-
-/** Default upstream URL for the ODRL Policy service. */
-const DEFAULT_ODRL_API_URL = 'http://odrl-service:8080'
-
 /** Default auth configuration JSON served to the browser. */
 const DEFAULT_AUTH_CONFIG_JSON = '{"providers":[]}'
 
@@ -49,18 +37,19 @@ const DEFAULT_STATIC_DIR = '../dist'
  * Application configuration derived from environment variables.
  *
  * All downstream service URLs point to internal network addresses
- * that are not directly accessible from the browser.
+ * that are not directly accessible from the browser. An empty string
+ * means the service is not configured and its UI section will be hidden.
  */
 export interface AppConfig {
   /** Port the BFF server listens on. */
   port: number
-  /** Upstream URL for the Trusted Issuers List API. */
+  /** Upstream URL for the Trusted Issuers List API (empty = disabled). */
   tilApiUrl: string
-  /** Upstream URL for the Trusted Issuers Registry API. */
+  /** Upstream URL for the Trusted Issuers Registry API (empty = disabled). */
   tirApiUrl: string
-  /** Upstream URL for the Credentials Config Service API. */
+  /** Upstream URL for the Credentials Config Service API (empty = disabled). */
   ccsApiUrl: string
-  /** Upstream URL for the ODRL Policy API. */
+  /** Upstream URL for the ODRL Policy API (empty = disabled). */
   odrlApiUrl: string
   /** JSON string with OAuth2/OIDC provider configuration for the browser. */
   authConfigJson: string
@@ -68,6 +57,41 @@ export interface AppConfig {
   staticDir: string
   /** Minimum log severity level for the BFF server. */
   logLevel: LogLevel
+}
+
+/**
+ * Per-service availability flags exposed to the frontend.
+ *
+ * A service is considered enabled when its upstream URL is configured
+ * (non-empty). The frontend uses this to hide navigation tabs and
+ * route guards for services that are not available.
+ */
+export interface ServicesConfig {
+  /** Whether the Trusted Issuers List service is available. */
+  til: boolean
+  /** Whether the Trusted Issuers Registry service is available. */
+  tir: boolean
+  /** Whether the Credentials Config Service is available. */
+  ccs: boolean
+  /** Whether the ODRL Policy service is available. */
+  odrl: boolean
+}
+
+/**
+ * Derives per-service availability flags from the application configuration.
+ *
+ * A service is enabled when its upstream URL is a non-empty string.
+ *
+ * @param config - Application configuration with upstream service URLs
+ * @returns Object indicating which services are enabled
+ */
+export function getEnabledServices(config: AppConfig): ServicesConfig {
+  return {
+    til: config.tilApiUrl !== '',
+    tir: config.tirApiUrl !== '',
+    ccs: config.ccsApiUrl !== '',
+    odrl: config.odrlApiUrl !== '',
+  }
 }
 
 /**
@@ -102,10 +126,10 @@ export function parsePort(value: string | undefined): number {
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
   return {
     port: parsePort(env.PORT),
-    tilApiUrl: env.TIL_API_URL || DEFAULT_TIL_API_URL,
-    tirApiUrl: env.TIR_API_URL || DEFAULT_TIR_API_URL,
-    ccsApiUrl: env.CCS_API_URL || DEFAULT_CCS_API_URL,
-    odrlApiUrl: env.ODRL_API_URL || DEFAULT_ODRL_API_URL,
+    tilApiUrl: env.TIL_API_URL || '',
+    tirApiUrl: env.TIR_API_URL || '',
+    ccsApiUrl: env.CCS_API_URL || '',
+    odrlApiUrl: env.ODRL_API_URL || '',
     authConfigJson: env.AUTH_CONFIG_JSON || DEFAULT_AUTH_CONFIG_JSON,
     staticDir: env.STATIC_DIR || DEFAULT_STATIC_DIR,
     logLevel: parseLogLevel(env.LOG_LEVEL),

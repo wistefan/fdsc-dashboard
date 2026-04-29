@@ -53,4 +53,5 @@ interface ImportMeta {
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 interface Window {
   __AUTH_CONFIG__?: unknown
+  __SERVICES_CONFIG__?: unknown
 }

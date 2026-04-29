@@ -106,9 +106,9 @@ function createProxyOptions(route: ProxyRoute, logger: Logger): Options {
 }
 
 /**
- * Mounts proxy middleware for all four downstream services on the Express app.
+ * Mounts proxy middleware for configured downstream services on the Express app.
  *
- * Routes:
+ * Only services whose upstream URL is non-empty are mounted. Possible routes:
  * - `/api/til/*` → `config.tilApiUrl`
  * - `/api/tir/*` → `config.tirApiUrl`
  * - `/api/ccs/*` → `config.ccsApiUrl`
@@ -127,7 +127,7 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
     { path: TIR_API_PATH, target: config.tirApiUrl },
     { path: CCS_API_PATH, target: config.ccsApiUrl },
     { path: ODRL_API_PATH, target: config.odrlApiUrl },
-  ]
+  ].filter((route) => route.target !== '')
 
   for (const route of routes) {
     app.use(route.path, createProxyMiddleware(createProxyOptions(route, logger)))

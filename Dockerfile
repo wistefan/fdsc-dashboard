@@ -54,12 +54,10 @@ COPY --from=build-server /app/server/package.json ./server/package.json
 # Copy the built frontend assets
 COPY --from=build-frontend /app/dist ./dist
 
-# Environment variables with defaults (see server/src/config.ts for docs)
+# Environment variables with defaults (see server/src/config.ts for docs).
+# Service URLs are intentionally unset — set them at deploy time to enable
+# the corresponding UI tab. An unset or empty URL hides the tab.
 ENV PORT=3000 \
-    TIL_API_URL=http://til-service:8080 \
-    TIR_API_URL=http://tir-service:8080 \
-    CCS_API_URL=http://ccs-service:8080 \
-    ODRL_API_URL=http://odrl-service:8080 \
     AUTH_CONFIG_JSON='{"providers":[]}' \
     STATIC_DIR=/app/dist
 

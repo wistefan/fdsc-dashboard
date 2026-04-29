@@ -28,6 +28,7 @@ import {
   RETURN_TO_STORAGE_KEY,
 } from '@/auth/constants'
 import { useAuthStore } from '@/stores/auth'
+import { useServices, type ServicesConfig } from '@/composables/useServices'
 
 /** Route name of the provider-picker login view. */
 const LOGIN_ROUTE_NAME = 'login'
@@ -250,6 +251,59 @@ function adminOnlyFallback(
 }
 
 /**
+ * Maps a route name prefix to the service key that must be enabled for
+ * routes in that family to be reachable.
+ */
+const ROUTE_SERVICE_MAP: ReadonlyArray<{ prefix: string; service: keyof ServicesConfig }> = [
+  { prefix: 'til-', service: 'til' },
+  { prefix: 'tir-', service: 'tir' },
+  { prefix: 'ccs-', service: 'ccs' },
+  { prefix: 'service-policy-', service: 'odrl' },
+  { prefix: 'policy-', service: 'odrl' },
+  { prefix: 'policies-', service: 'odrl' },
+]
+
+/**
+ * Resolve the service key required by a given route, if any.
+ *
+ * @param target - the route being evaluated.
+ * @returns The service key, or `null` when the route is not service-specific.
+ */
+function requiredService(target: RouteLocationNormalized): keyof ServicesConfig | null {
+  const name = typeof target.name === 'string' ? target.name : ''
+  for (const entry of ROUTE_SERVICE_MAP) {
+    if (name.startsWith(entry.prefix)) {
+      return entry.service
+    }
+  }
+  return null
+}
+
+/**
+ * Router-level guard that blocks navigation to routes whose backing
+ * service is not configured. Disabled-service routes redirect to home.
+ *
+ * @param to - the target route.
+ * @param _from - the source route (unused).
+ * @param next - the navigation callback.
+ */
+export function serviceGuard(
+  to: RouteLocationNormalized,
+  _from: RouteLocationNormalized,
+  next: NavigationGuardNext,
+): void {
+  const service = requiredService(to)
+  if (service !== null) {
+    const services = useServices()
+    if (!services[service]) {
+      next({ name: 'home' })
+      return
+    }
+  }
+  next()
+}
+
+/**
  * Router-level authentication guard.
  *
  * When auth is *disabled* the guard is a no-op — this preserves the
@@ -294,6 +348,7 @@ export function authGuard(
   next()
 }
 
+router.beforeEach(serviceGuard)
 router.beforeEach(authGuard)
 
 export default router

@@ -85,11 +85,40 @@ describe('mountProxyMiddleware', () => {
     mockedCreateProxy.mockClear()
   })
 
-  it('creates proxy middleware for all four downstream services', () => {
+  it('creates proxy middleware for all four downstream services when all are configured', () => {
     const app = express()
     mountProxyMiddleware(app, createTestConfig(), createMockLogger())
 
     expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_PROXY_COUNT)
+  })
+
+  it('skips proxy middleware for services with empty URLs', () => {
+    const app = express()
+    const partialConfig = createTestConfig({ tirApiUrl: '', odrlApiUrl: '' })
+    mountProxyMiddleware(app, partialConfig, createMockLogger())
+
+    const EXPECTED_ENABLED_COUNT = 2
+    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_ENABLED_COUNT)
+
+    const targets = mockedCreateProxy.mock.calls.map(
+      (args) => (args[0] as Record<string, unknown>)?.target,
+    )
+    expect(targets).toContain('http://til:8080')
+    expect(targets).toContain('http://ccs:8080')
+    expect(targets).not.toContain('')
+  })
+
+  it('creates no proxy middleware when all service URLs are empty', () => {
+    const app = express()
+    const emptyConfig = createTestConfig({
+      tilApiUrl: '',
+      tirApiUrl: '',
+      ccsApiUrl: '',
+      odrlApiUrl: '',
+    })
+    mountProxyMiddleware(app, emptyConfig, createMockLogger())
+
+    expect(mockedCreateProxy).not.toHaveBeenCalled()
   })
 
   it.each([

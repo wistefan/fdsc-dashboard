@@ -43,6 +43,7 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     odrlApiUrl: 'http://odrl:8080',
     authConfigJson: '{"providers":[]}',
     staticDir: '../dist',
+    logLevel: 'info',
     ...overrides,
   }
 }
@@ -64,12 +65,15 @@ describe('GET /config.js', () => {
     expect(res.headers['content-type']).toMatch(/application\/javascript/)
   })
 
-  it('returns JavaScript assigning default empty providers to window.__AUTH_CONFIG__', async () => {
+  it('returns JavaScript assigning auth and services config to window globals', async () => {
     const app = express()
     app.use(createRuntimeConfigRouter(createTestConfig()))
 
     const res = await request(app).get('/config.js')
-    expect(res.text).toBe('window.__AUTH_CONFIG__ = {"providers":[]};')
+    expect(res.text).toContain('window.__AUTH_CONFIG__ = {"providers":[]};')
+    expect(res.text).toContain(
+      'window.__SERVICES_CONFIG__ = {"til":true,"tir":true,"ccs":true,"odrl":true};',
+    )
   })
 
   it('embeds custom auth provider configuration', async () => {
@@ -78,7 +82,7 @@ describe('GET /config.js', () => {
     app.use(createRuntimeConfigRouter(createTestConfig({ authConfigJson: authJson })))
 
     const res = await request(app).get('/config.js')
-    expect(res.text).toBe(`window.__AUTH_CONFIG__ = ${authJson};`)
+    expect(res.text).toContain(`window.__AUTH_CONFIG__ = ${authJson};`)
   })
 
   it('handles complex auth configuration with multiple providers', async () => {
@@ -91,5 +95,19 @@ describe('GET /config.js', () => {
     expect(res.text).toContain('window.__AUTH_CONFIG__')
     expect(res.text).toContain('keycloak')
     expect(res.text).toContain('github')
+  })
+
+  it('marks disabled services as false in __SERVICES_CONFIG__', async () => {
+    const app = express()
+    app.use(
+      createRuntimeConfigRouter(
+        createTestConfig({ tirApiUrl: '', odrlApiUrl: '' }),
+      ),
+    )
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toContain(
+      'window.__SERVICES_CONFIG__ = {"til":true,"tir":false,"ccs":true,"odrl":false};',
+    )
   })
 })

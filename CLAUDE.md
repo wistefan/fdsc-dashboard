@@ -138,8 +138,8 @@ docker compose up --build   # BFF + mock backends on :8080
 | Variable | Description | Default |
 |---|---|---|
 | `PORT` | BFF listen port | `3000` |
-| `TIL_API_URL` | Trusted Issuers List upstream | `http://til-service:8080` |
-| `TIR_API_URL` | Trusted Issuers Registry upstream | `http://tir-service:8080` |
-| `CCS_API_URL` | Credentials Config Service upstream | `http://ccs-service:8080` |
-| `ODRL_API_URL` | ODRL Policy upstream | `http://odrl-service:8080` |
+| `TIL_API_URL` | Trusted Issuers List upstream (empty = tab hidden) | _(empty)_ |
+| `TIR_API_URL` | Trusted Issuers Registry upstream (empty = tab hidden) | _(empty)_ |
+| `CCS_API_URL` | Credentials Config Service upstream (empty = tab hidden) | _(empty)_ |
+| `ODRL_API_URL` | ODRL Policy upstream (empty = tab hidden) | _(empty)_ |
 | `AUTH_CONFIG_JSON` | JSON with OAuth2 provider config | `{"providers":[]}` |
