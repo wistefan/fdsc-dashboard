@@ -26,6 +26,7 @@ import { type Express, type Response } from 'express'
 import { createProxyMiddleware, type Options } from 'http-proxy-middleware'
 import type { IncomingMessage } from 'node:http'
 import type { AppConfig } from './config.js'
+import type { Logger } from './logger.js'
 
 /** HTTP status code returned when a proxy request fails to reach the upstream. */
 const BAD_GATEWAY_STATUS = 502
@@ -64,9 +65,10 @@ interface ProxyRoute {
  * are visible in server logs rather than silently swallowed.
  *
  * @param route - The proxy route descriptor
+ * @param logger - Logger instance for emitting proxy diagnostics
  * @returns http-proxy-middleware options
  */
-function createProxyOptions(route: ProxyRoute): Options {
+function createProxyOptions(route: ProxyRoute, logger: Logger): Options {
   return {
     target: route.target,
     changeOrigin: true,
@@ -75,15 +77,15 @@ function createProxyOptions(route: ProxyRoute): Options {
     },
     on: {
       proxyReq: (_proxyReq, req) => {
-        console.log(`[proxy] ${req.method} ${req.url} -> ${route.target}`)
+        logger.debug(`[proxy] ${req.method} ${req.url} -> ${route.target}`)
       },
       proxyRes: (proxyRes, req) => {
-        console.log(
+        logger.debug(
           `[proxy] ${req.method} ${req.url} <- ${route.target} ${proxyRes.statusCode}`,
         )
       },
       error: (err: Error, req: IncomingMessage, res: unknown) => {
-        console.error(
+        logger.error(
           `[proxy] ${req.method} ${req.url} -> ${route.target} failed: ${err.message}`,
         )
         if (res && typeof res === 'object' && 'writeHead' in res) {
@@ -117,8 +119,9 @@ function createProxyOptions(route: ProxyRoute): Options {
  *
  * @param app - The Express application to mount proxy routes on
  * @param config - Application configuration with upstream service URLs
+ * @param logger - Logger instance for proxy diagnostics
  */
-export function mountProxyMiddleware(app: Express, config: AppConfig): void {
+export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Logger): void {
   const routes: ProxyRoute[] = [
     { path: TIL_API_PATH, target: config.tilApiUrl },
     { path: TIR_API_PATH, target: config.tirApiUrl },
@@ -127,6 +130,6 @@ export function mountProxyMiddleware(app: Express, config: AppConfig): void {
   ]
 
   for (const route of routes) {
-    app.use(route.path, createProxyMiddleware(createProxyOptions(route)))
+    app.use(route.path, createProxyMiddleware(createProxyOptions(route, logger)))
   }
 }

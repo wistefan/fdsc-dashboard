@@ -22,6 +22,8 @@
  * no other module should read env vars directly.
  */
 
+import { type LogLevel, parseLogLevel } from './logger.js'
+
 /** Default port the BFF server listens on. */
 const DEFAULT_PORT = 3000
 
@@ -64,6 +66,8 @@ export interface AppConfig {
   authConfigJson: string
   /** Directory from which static frontend assets are served. */
   staticDir: string
+  /** Minimum log severity level for the BFF server. */
+  logLevel: LogLevel
 }
 
 /**
@@ -104,5 +108,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     odrlApiUrl: env.ODRL_API_URL || DEFAULT_ODRL_API_URL,
     authConfigJson: env.AUTH_CONFIG_JSON || DEFAULT_AUTH_CONFIG_JSON,
     staticDir: env.STATIC_DIR || DEFAULT_STATIC_DIR,
+    logLevel: parseLogLevel(env.LOG_LEVEL),
   }
 }

@@ -24,6 +24,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { parsePort, loadConfig } from '../config.js'
+import { parseLogLevel } from '../logger.js'
 
 /** Default port returned when PORT env var is missing or invalid. */
 const DEFAULT_PORT = 3000
@@ -86,6 +87,7 @@ describe('loadConfig', () => {
       odrlApiUrl: DEFAULT_ODRL_API_URL,
       authConfigJson: DEFAULT_AUTH_CONFIG_JSON,
       staticDir: DEFAULT_STATIC_DIR,
+      logLevel: 'info',
     })
   })
 
@@ -98,6 +100,7 @@ describe('loadConfig', () => {
       ODRL_API_URL: 'http://custom-odrl:3000',
       AUTH_CONFIG_JSON: '{"providers":[{"name":"keycloak"}]}',
       STATIC_DIR: '/var/www/html',
+      LOG_LEVEL: 'debug',
     }
 
     const config = loadConfig(env)
@@ -110,6 +113,7 @@ describe('loadConfig', () => {
       odrlApiUrl: 'http://custom-odrl:3000',
       authConfigJson: '{"providers":[{"name":"keycloak"}]}',
       staticDir: '/var/www/html',
+      logLevel: 'debug',
     })
   })
 
@@ -125,6 +129,7 @@ describe('loadConfig', () => {
     { envVar: 'ODRL_API_URL', configKey: 'odrlApiUrl', value: 'http://my-odrl:9999' },
     { envVar: 'AUTH_CONFIG_JSON', configKey: 'authConfigJson', value: '{"custom":true}' },
     { envVar: 'STATIC_DIR', configKey: 'staticDir', value: '/custom/path' },
+    { envVar: 'LOG_LEVEL', configKey: 'logLevel', value: 'debug' },
   ])(
     'allows individual override of $envVar',
     ({ envVar, configKey, value }) => {
@@ -137,5 +142,34 @@ describe('loadConfig', () => {
     const originalTilUrl = process.env.TIL_API_URL
     loadConfig({ TIL_API_URL: 'http://should-not-leak:1234' })
     expect(process.env.TIL_API_URL).toBe(originalTilUrl)
+  })
+})
+
+describe('parseLogLevel', () => {
+  it.each([
+    { input: undefined, label: 'undefined' },
+    { input: '', label: 'empty string' },
+    { input: 'verbose', label: 'unrecognised level' },
+    { input: 'trace', label: 'unsupported level' },
+  ])('returns default level "info" for invalid input: $label', ({ input }) => {
+    expect(parseLogLevel(input)).toBe('info')
+  })
+
+  it.each([
+    { input: 'debug', expected: 'debug' },
+    { input: 'info', expected: 'info' },
+    { input: 'warn', expected: 'warn' },
+    { input: 'error', expected: 'error' },
+  ])('parses valid level "$input"', ({ input, expected }) => {
+    expect(parseLogLevel(input)).toBe(expected)
+  })
+
+  it.each([
+    { input: 'DEBUG', expected: 'debug' },
+    { input: 'Info', expected: 'info' },
+    { input: 'WARN', expected: 'warn' },
+    { input: '  error  ', expected: 'error' },
+  ])('handles case-insensitive and trimmed input "$input"', ({ input, expected }) => {
+    expect(parseLogLevel(input)).toBe(expected)
   })
 })

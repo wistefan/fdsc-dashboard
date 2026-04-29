@@ -26,6 +26,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import express from 'express'
 import { createProxyMiddleware } from 'http-proxy-middleware'
 import type { AppConfig } from '../config.js'
+import type { Logger } from '../logger.js'
 
 // Mock http-proxy-middleware — vitest hoists this above imports
 vi.mock('http-proxy-middleware', () => ({
@@ -60,7 +61,22 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     odrlApiUrl: 'http://odrl:8080',
     authConfigJson: '{"providers":[]}',
     staticDir: '../dist',
+    logLevel: 'debug',
     ...overrides,
+  }
+}
+
+/**
+ * Creates a mock Logger where every method is a vitest spy.
+ *
+ * @returns A Logger with all methods replaced by vi.fn()
+ */
+function createMockLogger(): Logger {
+  return {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   }
 }
 
@@ -71,7 +87,7 @@ describe('mountProxyMiddleware', () => {
 
   it('creates proxy middleware for all four downstream services', () => {
     const app = express()
-    mountProxyMiddleware(app, createTestConfig())
+    mountProxyMiddleware(app, createTestConfig(), createMockLogger())
 
     expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_PROXY_COUNT)
   })
@@ -105,7 +121,7 @@ describe('mountProxyMiddleware', () => {
     'configures $service proxy with correct target URL',
     ({ targetUrl }) => {
       const app = express()
-      mountProxyMiddleware(app, createTestConfig())
+      mountProxyMiddleware(app, createTestConfig(), createMockLogger())
 
       const matchingCall = mockedCreateProxy.mock.calls.find(
         (args) => (args[0] as Record<string, unknown>)?.target === targetUrl,
@@ -123,7 +139,7 @@ describe('mountProxyMiddleware', () => {
     'strips $path prefix via pathRewrite for $service proxy',
     ({ path, targetUrl }) => {
       const app = express()
-      mountProxyMiddleware(app, createTestConfig())
+      mountProxyMiddleware(app, createTestConfig(), createMockLogger())
 
       const matchingCall = mockedCreateProxy.mock.calls.find(
         (args) => (args[0] as Record<string, unknown>)?.target === targetUrl,
@@ -144,7 +160,7 @@ describe('mountProxyMiddleware', () => {
     'enables changeOrigin for $service proxy',
     ({ targetUrl }) => {
       const app = express()
-      mountProxyMiddleware(app, createTestConfig())
+      mountProxyMiddleware(app, createTestConfig(), createMockLogger())
 
       const matchingCall = mockedCreateProxy.mock.calls.find(
         (args) => (args[0] as Record<string, unknown>)?.target === targetUrl,
@@ -165,7 +181,7 @@ describe('mountProxyMiddleware', () => {
     })
 
     const app = express()
-    mountProxyMiddleware(app, customConfig)
+    mountProxyMiddleware(app, customConfig, createMockLogger())
 
     const targets = mockedCreateProxy.mock.calls.map(
       (args) => (args[0] as Record<string, unknown>)?.target,
@@ -186,7 +202,7 @@ describe('mountProxyMiddleware', () => {
     'registers on.error, on.proxyReq, and on.proxyRes handlers for $service proxy',
     ({ targetUrl }) => {
       const app = express()
-      mountProxyMiddleware(app, createTestConfig())
+      mountProxyMiddleware(app, createTestConfig(), createMockLogger())
 
       const matchingCall = mockedCreateProxy.mock.calls.find(
         (args) => (args[0] as Record<string, unknown>)?.target === targetUrl,
@@ -204,7 +220,8 @@ describe('mountProxyMiddleware', () => {
 
   it('error handler sends 502 with JSON body when upstream is unreachable', () => {
     const app = express()
-    mountProxyMiddleware(app, createTestConfig())
+    const mockLogger = createMockLogger()
+    mountProxyMiddleware(app, createTestConfig(), mockLogger)
 
     const options = mockedCreateProxy.mock.calls[0]![0] as Record<string, unknown>
     const onError = (options.on as Record<string, (...args: unknown[]) => void>).error
@@ -222,9 +239,7 @@ describe('mountProxyMiddleware', () => {
       },
     }
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     onError(new Error('ECONNREFUSED'), fakeReq, fakeRes)
-    consoleSpy.mockRestore()
 
     const EXPECTED_BAD_GATEWAY = 502
     expect(writtenStatus).toBe(EXPECTED_BAD_GATEWAY)
@@ -232,11 +247,13 @@ describe('mountProxyMiddleware', () => {
     const parsed = JSON.parse(writtenBody)
     expect(parsed.error).toBe('Bad Gateway')
     expect(parsed.message).toContain('ECONNREFUSED')
+    expect(mockLogger.error).toHaveBeenCalled()
   })
 
   it('error handler does not write headers when they are already sent', () => {
     const app = express()
-    mountProxyMiddleware(app, createTestConfig())
+    const mockLogger = createMockLogger()
+    mountProxyMiddleware(app, createTestConfig(), mockLogger)
 
     const options = mockedCreateProxy.mock.calls[0]![0] as Record<string, unknown>
     const onError = (options.on as Record<string, (...args: unknown[]) => void>).error
@@ -251,10 +268,9 @@ describe('mountProxyMiddleware', () => {
       end: () => {},
     }
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     onError(new Error('ECONNREFUSED'), fakeReq, fakeRes)
-    consoleSpy.mockRestore()
 
     expect(writeHeadCalled).toBe(false)
+    expect(mockLogger.error).toHaveBeenCalled()
   })
 })

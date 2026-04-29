@@ -38,6 +38,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadConfig } from './config.js'
 import { createHealthRouter } from './health.js'
+import { createLogger } from './logger.js'
 import { mountProxyMiddleware } from './proxy.js'
 import { createRuntimeConfigRouter } from './runtime-config.js'
 import { mountStaticServing } from './static.js'
@@ -45,6 +46,7 @@ import { mountStaticServing } from './static.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const config = loadConfig()
+const logger = createLogger(config.logLevel)
 const app = express()
 
 // Security headers — allow inline scripts for the config.js injection
@@ -64,20 +66,20 @@ app.use(createHealthRouter())
 app.use(createRuntimeConfigRouter(config))
 
 // API proxy routes to downstream services
-mountProxyMiddleware(app, config)
+mountProxyMiddleware(app, config, logger)
 
 // Static file serving + SPA fallback (must be last)
 const staticDir = path.resolve(__dirname, config.staticDir)
 mountStaticServing(app, staticDir)
 
 app.listen(config.port, () => {
-  console.log(`BFF server listening on port ${config.port}`)
-  console.log(`Static files served from: ${staticDir}`)
-  console.log(`Proxy targets:`)
-  console.log(`  /api/til -> ${config.tilApiUrl}`)
-  console.log(`  /api/tir -> ${config.tirApiUrl}`)
-  console.log(`  /api/ccs -> ${config.ccsApiUrl}`)
-  console.log(`  /api/odrl -> ${config.odrlApiUrl}`)
+  logger.info(`BFF server listening on port ${config.port}`)
+  logger.info(`Static files served from: ${staticDir}`)
+  logger.info(`Proxy targets:`)
+  logger.info(`  /api/til -> ${config.tilApiUrl}`)
+  logger.info(`  /api/tir -> ${config.tirApiUrl}`)
+  logger.info(`  /api/ccs -> ${config.ccsApiUrl}`)
+  logger.info(`  /api/odrl -> ${config.odrlApiUrl}`)
 })
 
 export { app }
