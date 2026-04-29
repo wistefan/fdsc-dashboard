@@ -94,6 +94,17 @@ const routes: RouteRecordRaw[] = [
     props: true,
   },
   {
+    path: '/tir',
+    name: 'tir-list',
+    component: () => import('@/views/tir/TirListView.vue'),
+  },
+  {
+    path: '/tir/:did',
+    name: 'tir-detail',
+    component: () => import('@/views/tir/TirDetailView.vue'),
+    props: true,
+  },
+  {
     path: '/ccs',
     name: 'ccs-list',
     component: () => import('@/views/ccs/CcsListView.vue'),
@@ -225,6 +236,9 @@ function adminOnlyFallback(
   const name = typeof target.name === 'string' ? target.name : ''
   if (name.startsWith('til-')) {
     return { name: 'til-list' }
+  }
+  if (name.startsWith('tir-')) {
+    return { name: 'tir-list' }
   }
   if (name.startsWith('ccs-')) {
     return { name: 'ccs-list' }

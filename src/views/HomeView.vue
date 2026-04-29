@@ -27,7 +27,7 @@
       <!-- Trusted Issuers card -->
       <v-col
         cols="12"
-        md="4"
+        md="3"
       >
         <v-card
           hover
@@ -101,10 +101,77 @@
         </v-card>
       </v-col>
 
+      <!-- Participants List card -->
+      <v-col
+        cols="12"
+        md="3"
+      >
+        <v-card
+          hover
+          class="resource-card"
+        >
+          <v-card-item>
+            <template #prepend>
+              <v-icon
+                size="48"
+                color="primary"
+              >
+                mdi-account-group
+              </v-icon>
+            </template>
+            <v-card-title class="text-h6">
+              {{ t('nav.tir') }}
+            </v-card-title>
+            <v-card-subtitle>
+              {{ t('home.tirDescription') }}
+            </v-card-subtitle>
+          </v-card-item>
+
+          <v-card-text>
+            <div class="d-flex align-center">
+              <v-skeleton-loader
+                v-if="tirStore.listLoading"
+                type="text"
+                width="60"
+              />
+              <span
+                v-else-if="!tirStore.listError"
+                class="text-h4 font-weight-bold text-primary"
+              >
+                {{ tirStore.totalParticipants }}
+              </span>
+              <v-icon
+                v-else
+                color="error"
+                size="24"
+              >
+                mdi-alert-circle-outline
+              </v-icon>
+              <span class="text-body-2 text-medium-emphasis ml-2">
+                {{ t('home.resourceCount') }}
+              </span>
+            </div>
+          </v-card-text>
+
+          <v-card-actions>
+            <v-btn
+              variant="text"
+              color="primary"
+              :to="{ name: 'tir-list' }"
+            >
+              {{ t('home.viewAll') }}
+              <v-icon end>
+                mdi-arrow-right
+              </v-icon>
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-col>
+
       <!-- Credentials Config card -->
       <v-col
         cols="12"
-        md="4"
+        md="3"
       >
         <v-card
           hover
@@ -181,7 +248,7 @@
       <!-- ODRL Policies card -->
       <v-col
         cols="12"
-        md="4"
+        md="3"
       >
         <v-card
           hover
@@ -262,11 +329,13 @@
 import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTilStore } from '@/stores/til'
+import { useTirStore } from '@/stores/tir'
 import { useCcsStore } from '@/stores/ccs'
 import { usePoliciesStore } from '@/stores/policies'
 
 const { t } = useI18n()
 const tilStore = useTilStore()
+const tirStore = useTirStore()
 const ccsStore = useCcsStore()
 const policiesStore = usePoliciesStore()
 
@@ -279,6 +348,7 @@ onMounted(() => {
   /** Minimum page size to fetch only the total count. */
   const MINIMAL_PAGE_SIZE = 1
   tilStore.fetchIssuers(0, MINIMAL_PAGE_SIZE)
+  tirStore.fetchParticipants(0, MINIMAL_PAGE_SIZE)
   ccsStore.fetchServices(0, MINIMAL_PAGE_SIZE)
   policiesStore.fetchPolicies(0, MINIMAL_PAGE_SIZE)
 })

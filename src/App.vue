@@ -181,6 +181,11 @@
           to="/til"
         />
         <v-list-item
+          prepend-icon="mdi-account-group"
+          :title="t('nav.tir')"
+          to="/tir"
+        />
+        <v-list-item
           prepend-icon="mdi-file-certificate"
           :title="t('nav.ccs')"
           to="/ccs"
