@@ -59,6 +59,7 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     tirApiUrl: 'http://tir:8080',
     ccsApiUrl: 'http://ccs:8080',
     odrlApiUrl: 'http://odrl:8080',
+    apisixDashboardUrl: '',
     authConfigJson: '{"providers":[]}',
     staticDir: '../dist',
     logLevel: 'debug',

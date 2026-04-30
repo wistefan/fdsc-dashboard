@@ -41,6 +41,7 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     tirApiUrl: 'http://tir:8080',
     ccsApiUrl: 'http://ccs:8080',
     odrlApiUrl: 'http://odrl:8080',
+    apisixDashboardUrl: '',
     authConfigJson: '{"providers":[]}',
     staticDir: '../dist',
     logLevel: 'info',
@@ -65,7 +66,7 @@ describe('GET /config.js', () => {
     expect(res.headers['content-type']).toMatch(/application\/javascript/)
   })
 
-  it('returns JavaScript assigning auth and services config to window globals', async () => {
+  it('returns JavaScript assigning auth, services, and apisix config to window globals', async () => {
     const app = express()
     app.use(createRuntimeConfigRouter(createTestConfig()))
 
@@ -74,6 +75,7 @@ describe('GET /config.js', () => {
     expect(res.text).toContain(
       'window.__SERVICES_CONFIG__ = {"til":true,"tir":true,"ccs":true,"odrl":true};',
     )
+    expect(res.text).toContain('window.__APISIX_CONFIG__ = {"upstreamUrl":null};')
   })
 
   it('embeds custom auth provider configuration', async () => {
@@ -109,5 +111,27 @@ describe('GET /config.js', () => {
     expect(res.text).toContain(
       'window.__SERVICES_CONFIG__ = {"til":true,"tir":false,"ccs":true,"odrl":false};',
     )
+  })
+
+  it('injects Apisix upstream URL into __APISIX_CONFIG__ when configured', async () => {
+    const app = express()
+    app.use(
+      createRuntimeConfigRouter(
+        createTestConfig({ apisixDashboardUrl: 'https://apisix.example.com/ui' }),
+      ),
+    )
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toContain(
+      'window.__APISIX_CONFIG__ = {"upstreamUrl":"https://apisix.example.com/ui"};',
+    )
+  })
+
+  it('injects null upstream URL into __APISIX_CONFIG__ when not configured', async () => {
+    const app = express()
+    app.use(createRuntimeConfigRouter(createTestConfig({ apisixDashboardUrl: '' })))
+
+    const res = await request(app).get('/config.js')
+    expect(res.text).toContain('window.__APISIX_CONFIG__ = {"upstreamUrl":null};')
   })
 })
