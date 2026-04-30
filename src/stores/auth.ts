@@ -80,18 +80,70 @@ const INITIAL_STATUS: AuthStatus = 'idle'
 const UNKNOWN_USER_DISPLAY_NAME = 'Unknown user'
 
 /**
- * Walk a dotted claim path (e.g. `realm_access.roles`) on a JSON-like
- * object and return the value at that path, or `undefined` if any
- * segment is missing or not an object.
+ * Parse a claim path into an ordered list of property-name segments.
+ *
+ * Supports two notations that can be mixed freely:
+ *
+ * - **Dot notation** — `realm_access.roles` → `["realm_access", "roles"]`.
+ * - **Bracket notation** — `resource_access[did:web:x.org].roles`
+ *   → `["resource_access", "did:web:x.org", "roles"]`.
+ *
+ * Brackets allow property names that contain dots (e.g. DID-style
+ * client IDs) to be used as a single segment.
+ *
+ * @param path - claim path string.
+ * @returns ordered array of property-name segments.
+ */
+export function parseClaimPath(path: string): string[] {
+  const segments: string[] = []
+  let i = 0
+  while (i < path.length) {
+    if (path[i] === '.') {
+      i++
+      continue
+    }
+    if (path[i] === '[') {
+      const close = path.indexOf(']', i + 1)
+      if (close === -1) {
+        segments.push(path.substring(i + 1))
+        break
+      }
+      const key = path.substring(i + 1, close)
+      if (key.length > 0) {
+        segments.push(key)
+      }
+      i = close + 1
+      continue
+    }
+    let end = i
+    while (end < path.length && path[end] !== '.' && path[end] !== '[') {
+      end++
+    }
+    const key = path.substring(i, end)
+    if (key.length > 0) {
+      segments.push(key)
+    }
+    i = end
+  }
+  return segments
+}
+
+/**
+ * Walk a claim path on a JSON-like object and return the value at that
+ * path, or `undefined` if any segment is missing or not an object.
+ *
+ * Supports both dot notation (`realm_access.roles`) and bracket notation
+ * (`resource_access[did:web:mp-operations.org].roles`) for property names
+ * that contain dots.
  *
  * @param source - claims object to walk.
- * @param path - dotted path such as `"resource_access.fdsc.roles"`.
+ * @param path - claim path, e.g. `"resource_access[did:web:x.org].roles"`.
  */
 function readClaimPath(source: unknown, path: string): unknown {
   if (source === null || source === undefined) {
     return undefined
   }
-  const segments = path.split('.').filter((s) => s.length > 0)
+  const segments = parseClaimPath(path)
   let cursor: unknown = source
   for (const segment of segments) {
     if (

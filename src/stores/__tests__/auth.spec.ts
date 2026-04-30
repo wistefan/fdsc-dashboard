@@ -412,6 +412,25 @@ describe('Auth Store', () => {
   })
 })
 
+/* ── Claim-path parser ────────────────────────────────────────────── */
+
+describe('parseClaimPath', () => {
+  it.each([
+    ['simple dotted path', 'realm_access.roles', ['realm_access', 'roles']],
+    ['single segment', 'roles', ['roles']],
+    ['bracket notation for dotted key', 'resource_access[did:web:mp-operations.org].roles', ['resource_access', 'did:web:mp-operations.org', 'roles']],
+    ['consecutive brackets', 'a[b.c][d.e].f', ['a', 'b.c', 'd.e', 'f']],
+    ['bracket at start', '[top.level].child', ['top.level', 'child']],
+    ['empty string', '', []],
+    ['only dots', '...', []],
+    ['empty brackets are skipped', 'a[].b', ['a', 'b']],
+    ['unclosed bracket takes rest of string', 'a[b.c', ['a', 'b.c']],
+  ])('%s: %s', async (_label, input, expected) => {
+    const { parseClaimPath } = await import('@/stores/auth')
+    expect(parseClaimPath(input)).toEqual(expected)
+  })
+})
+
 /* ── Role-resolution helper ────────────────────────────────────────── */
 
 describe('resolveUserRole', () => {
@@ -466,6 +485,21 @@ describe('resolveUserRole', () => {
     }
     const role = resolveUserRole(custom, {
       resource_access: { fdsc: { roles: ['admin'] } },
+    })
+    expect(role).toBe(ROLE_ADMIN)
+  })
+
+  it('resolves roles via bracket notation for client IDs containing dots', async () => {
+    const { resolveUserRole } = await import('@/stores/auth')
+    const provider: OAuthProviderConfig = {
+      ...BASE_PROVIDER,
+      rolesClaimPath: 'resource_access[did:web:mp-operations.org].roles',
+      roleMapping: { admin: ROLE_ADMIN },
+    }
+    const role = resolveUserRole(provider, {
+      resource_access: {
+        'did:web:mp-operations.org': { roles: ['admin'] },
+      },
     })
     expect(role).toBe(ROLE_ADMIN)
   })
