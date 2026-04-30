@@ -8,7 +8,8 @@
     "til": "Trusted Issuers",
     "tir": "Participants List",
     "ccs": "Credentials Config",
-    "policies": "Policies"
+    "policies": "Policies",
+    "apisix": "Apisix Dashboard"
   },
   "common": {
     "loading": "Loading…",
@@ -60,7 +61,8 @@
     "tilDescription": "Manage trusted issuer entries",
     "tirDescription": "Browse registered participants",
     "ccsDescription": "Configure credential services",
-    "policiesDescription": "Define ODRL access policies"
+    "policiesDescription": "Define ODRL access policies",
+    "apisixDescription": "Manage gateway routes, services, and consumers"
   },
   "theme": {
     "toggle": "Toggle theme",
@@ -267,5 +269,13 @@
     "createServiceSuccess": "Service created successfully",
     "deleteServiceSuccess": "Service deleted successfully",
     "deleteServiceError": "Failed to delete service"
+  },
+  "apisix": {
+    "iframeTitle": "Apache APISIX Dashboard",
+    "toolbarBack": "Back to dashboard",
+    "openInNewTab": "Open in new tab",
+    "notConfiguredTitle": "Apisix Dashboard not configured",
+    "notConfigured": "The Apisix Dashboard upstream URL is not set. Set the VITE_APISIX_DASHBOARD_URL environment variable for local development or APISIX_DASHBOARD_URL for production containers.",
+    "adminOnly": "Apisix Dashboard access requires the admin role."
   }
 }

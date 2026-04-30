@@ -55,6 +55,10 @@ export interface AppConfig {
   authConfigJson: string
   /** Directory from which static frontend assets are served. */
   staticDir: string
+  /** Upstream URL for the Apisix Dashboard (empty = disabled). */
+  apisixDashboardUrl: string
+  /** API key for the Apisix Admin API, injected by the proxy (empty = no key). */
+  apisixAdminApiKey: string
   /** Minimum log severity level for the BFF server. */
   logLevel: LogLevel
 }
@@ -78,6 +82,19 @@ export interface ServicesConfig {
 }
 
 /**
+ * Apisix Dashboard configuration exposed to the frontend.
+ *
+ * Unlike regular services (which are proxied through the BFF), the Apisix
+ * Dashboard is an external URL opened via iframe or link. The frontend
+ * reads this from `window.__APISIX_CONFIG__` to decide whether to show the
+ * navigation entry and which URL to embed.
+ */
+export interface ApisixConfig {
+  /** Upstream URL for the Apisix Dashboard, or `null` when not configured. */
+  upstreamUrl: string | null
+}
+
+/**
  * Derives per-service availability flags from the application configuration.
  *
  * A service is enabled when its upstream URL is a non-empty string.
@@ -91,6 +108,21 @@ export function getEnabledServices(config: AppConfig): ServicesConfig {
     tir: config.tirApiUrl !== '',
     ccs: config.ccsApiUrl !== '',
     odrl: config.odrlApiUrl !== '',
+  }
+}
+
+/**
+ * Derives the Apisix Dashboard configuration from the application configuration.
+ *
+ * Returns the upstream URL when configured, or `null` when the env var is
+ * absent or empty — the frontend hides the navigation entry in that case.
+ *
+ * @param config - Application configuration containing the Apisix Dashboard URL
+ * @returns Apisix configuration with upstream URL or null
+ */
+export function getApisixConfig(config: AppConfig): ApisixConfig {
+  return {
+    upstreamUrl: config.apisixDashboardUrl !== '' ? config.apisixDashboardUrl : null,
   }
 }
 
@@ -130,6 +162,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     tirApiUrl: env.TIR_API_URL || '',
     ccsApiUrl: env.CCS_API_URL || '',
     odrlApiUrl: env.ODRL_API_URL || '',
+    apisixDashboardUrl: env.APISIX_DASHBOARD_URL || '',
+    apisixAdminApiKey: env.APISIX_ADMIN_API_KEY || '',
     authConfigJson: env.AUTH_CONFIG_JSON || DEFAULT_AUTH_CONFIG_JSON,
     staticDir: env.STATIC_DIR || DEFAULT_STATIC_DIR,
     logLevel: parseLogLevel(env.LOG_LEVEL),

@@ -36,6 +36,14 @@ interface ImportMetaEnv {
    * or an object of the form `{ "providers": [...] }`.
    */
   readonly VITE_AUTH_PROVIDERS?: string
+  /**
+   * Upstream URL for the Apisix Dashboard reverse proxy.
+   *
+   * When set, the Vite dev server proxies `/apisix-dashboard/*` to this
+   * URL and the navigation drawer shows the "Apisix Dashboard" entry.
+   * When unset, the integration is hidden.
+   */
+  readonly VITE_APISIX_DASHBOARD_URL?: string
 }
 
 interface ImportMeta {
@@ -54,4 +62,14 @@ interface ImportMeta {
 interface Window {
   __AUTH_CONFIG__?: unknown
   __SERVICES_CONFIG__?: unknown
+  /**
+   * Runtime-injected Apisix Dashboard configuration.
+   *
+   * A host-rendered `/config.js` snippet may set
+   * `window.__APISIX_CONFIG__` to an object containing the upstream URL
+   * before the Vue application bootstraps. When absent, the loader falls
+   * back to the `VITE_APISIX_DASHBOARD_URL` env var, then to "not
+   * configured".
+   */
+  __APISIX_CONFIG__?: import('./apisix/types').ApisixConfig
 }

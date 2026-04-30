@@ -24,6 +24,7 @@
 
 import { type Express, type Response } from 'express'
 import { createProxyMiddleware, type Options } from 'http-proxy-middleware'
+import type { ClientRequest } from 'node:http'
 import type { IncomingMessage } from 'node:http'
 import type { AppConfig } from './config.js'
 import type { Logger } from './logger.js'
@@ -43,6 +44,46 @@ const CCS_API_PATH = '/api/ccs'
 /** API path prefix for ODRL Policy routes. */
 const ODRL_API_PATH = '/api/odrl'
 
+/** Path prefix at which the Apisix Dashboard reverse proxy is mounted. */
+const APISIX_DASHBOARD_PATH = '/apisix-dashboard'
+
+/** Path prefix for the Apisix Admin API (called by the embedded dashboard UI). */
+const APISIX_ADMIN_API_PATH = '/apisix'
+
+/** HTTP header name used by the Apisix Admin API for authentication. */
+const APISIX_API_KEY_HEADER = 'X-API-KEY'
+
+/**
+ * Extracts the path component from a URL string.
+ *
+ * @param urlString - A full URL (e.g. `http://host:9180/ui`)
+ * @returns The path component (e.g. `/ui`), or `null` if absent or root-only
+ */
+function extractUrlPath(urlString: string): string | null {
+  try {
+    const parsed = new URL(urlString)
+    const p = parsed.pathname.replace(/\/+$/, '')
+    return p.length > 0 ? p : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Returns the origin (scheme + host + port) of a URL, stripping any path.
+ *
+ * @param urlString - A full URL (e.g. `http://host:9180/ui`)
+ * @returns The origin (e.g. `http://host:9180`)
+ */
+function extractUrlOrigin(urlString: string): string {
+  try {
+    const parsed = new URL(urlString)
+    return parsed.origin
+  } catch {
+    return urlString
+  }
+}
+
 /**
  * Descriptor for a single proxy route, mapping a local path prefix
  * to an upstream service URL.
@@ -52,6 +93,8 @@ interface ProxyRoute {
   path: string
   /** Full upstream URL to forward requests to. */
   target: string
+  /** Optional headers injected into every proxied request. */
+  headers?: Record<string, string>
 }
 
 /**
@@ -76,7 +119,12 @@ function createProxyOptions(route: ProxyRoute, logger: Logger): Options {
       [`^${route.path}`]: '',
     },
     on: {
-      proxyReq: (_proxyReq, req) => {
+      proxyReq: (proxyReq: ClientRequest, req) => {
+        if (route.headers) {
+          for (const [name, value] of Object.entries(route.headers)) {
+            proxyReq.setHeader(name, value)
+          }
+        }
         logger.debug(`[proxy] ${req.method} ${req.url} -> ${route.target}`)
       },
       proxyRes: (proxyRes, req) => {
@@ -113,6 +161,10 @@ function createProxyOptions(route: ProxyRoute, logger: Logger): Options {
  * - `/api/tir/*` → `config.tirApiUrl`
  * - `/api/ccs/*` → `config.ccsApiUrl`
  * - `/api/odrl/*` → `config.odrlApiUrl`
+ * - `/apisix-dashboard/*` → `config.apisixDashboardUrl`
+ * - The upstream's base path (e.g. `/ui/*`) is also proxied so that
+ *   absolute asset references in the Apisix Dashboard HTML resolve
+ *   correctly through the reverse proxy.
  *
  * Each proxy strips its path prefix before forwarding and passes all
  * request headers through unchanged.
@@ -127,7 +179,28 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
     { path: TIR_API_PATH, target: config.tirApiUrl },
     { path: CCS_API_PATH, target: config.ccsApiUrl },
     { path: ODRL_API_PATH, target: config.odrlApiUrl },
+    { path: APISIX_DASHBOARD_PATH, target: config.apisixDashboardUrl },
   ].filter((route) => route.target !== '')
+
+  if (config.apisixDashboardUrl !== '') {
+    const upstreamPath = extractUrlPath(config.apisixDashboardUrl)
+    if (upstreamPath !== null) {
+      routes.push({
+        path: upstreamPath,
+        target: config.apisixDashboardUrl,
+      })
+    }
+
+    const adminHeaders: Record<string, string> = {}
+    if (config.apisixAdminApiKey !== '') {
+      adminHeaders[APISIX_API_KEY_HEADER] = config.apisixAdminApiKey
+    }
+    routes.push({
+      path: APISIX_ADMIN_API_PATH,
+      target: extractUrlOrigin(config.apisixDashboardUrl) + APISIX_ADMIN_API_PATH,
+      headers: adminHeaders,
+    })
+  }
 
   for (const route of routes) {
     app.use(route.path, createProxyMiddleware(createProxyOptions(route, logger)))

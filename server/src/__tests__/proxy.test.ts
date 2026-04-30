@@ -59,6 +59,8 @@ function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     tirApiUrl: 'http://tir:8080',
     ccsApiUrl: 'http://ccs:8080',
     odrlApiUrl: 'http://odrl:8080',
+    apisixDashboardUrl: '',
+    apisixAdminApiKey: '',
     authConfigJson: '{"providers":[]}',
     staticDir: '../dist',
     logLevel: 'debug',
@@ -220,6 +222,137 @@ describe('mountProxyMiddleware', () => {
     expect(targets).toContain('http://custom-tir:9001')
     expect(targets).toContain('http://custom-ccs:9002')
     expect(targets).toContain('http://custom-odrl:9003')
+  })
+
+  it('mounts Apisix Dashboard proxy, asset path proxy, and admin API proxy when apisixDashboardUrl is configured', () => {
+    const app = express()
+    const configWithApisix = createTestConfig({
+      apisixDashboardUrl: 'http://apisix:9180/ui',
+    })
+    mountProxyMiddleware(app, configWithApisix, createMockLogger())
+
+    const EXPECTED_COUNT_WITH_APISIX_ASSETS_AND_ADMIN = 7
+    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_COUNT_WITH_APISIX_ASSETS_AND_ADMIN)
+
+    const targets = mockedCreateProxy.mock.calls.map(
+      (args) => (args[0] as Record<string, unknown>)?.target,
+    )
+    expect(targets).toContain('http://apisix:9180/ui')
+
+    const assetProxyCall = mockedCreateProxy.mock.calls.find((args) => {
+      const opts = args[0] as Record<string, unknown>
+      return opts.target === 'http://apisix:9180/ui'
+        && JSON.stringify(opts.pathRewrite).includes('^/ui')
+    })
+    expect(assetProxyCall).toBeDefined()
+
+    const adminProxyCall = mockedCreateProxy.mock.calls.find((args) => {
+      const opts = args[0] as Record<string, unknown>
+      return opts.target === 'http://apisix:9180/apisix'
+        && JSON.stringify(opts.pathRewrite).includes('^/apisix')
+    })
+    expect(adminProxyCall).toBeDefined()
+  })
+
+  it('does not add asset path proxy when apisixDashboardUrl has no path but still adds admin API proxy', () => {
+    const app = express()
+    const configWithApisix = createTestConfig({
+      apisixDashboardUrl: 'http://apisix:9000',
+    })
+    mountProxyMiddleware(app, configWithApisix, createMockLogger())
+
+    const EXPECTED_COUNT_WITH_APISIX_AND_ADMIN_NO_ASSETS = 6
+    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_COUNT_WITH_APISIX_AND_ADMIN_NO_ASSETS)
+  })
+
+  it('does not mount Apisix Dashboard proxy when apisixDashboardUrl is empty', () => {
+    const app = express()
+    mountProxyMiddleware(app, createTestConfig(), createMockLogger())
+
+    const targets = mockedCreateProxy.mock.calls.map(
+      (args) => (args[0] as Record<string, unknown>)?.target,
+    )
+    expect(targets).not.toContain('')
+    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_PROXY_COUNT)
+  })
+
+  it('injects X-API-KEY header on Apisix Admin API proxy when apisixAdminApiKey is configured', () => {
+    const app = express()
+    const configWithKey = createTestConfig({
+      apisixDashboardUrl: 'http://apisix:9180/ui',
+      apisixAdminApiKey: 'my-secret-key',
+    })
+    mountProxyMiddleware(app, configWithKey, createMockLogger())
+
+    const adminCall = mockedCreateProxy.mock.calls.find((args) => {
+      const opts = args[0] as Record<string, unknown>
+      return opts.target === 'http://apisix:9180/apisix' && opts.pathRewrite !== undefined
+        && JSON.stringify(opts.pathRewrite).includes('^/apisix')
+    })
+    expect(adminCall).toBeDefined()
+
+    const options = adminCall![0] as Record<string, unknown>
+    const on = options.on as Record<string, (...args: unknown[]) => void>
+    const fakeProxyReq = {
+      setHeader: vi.fn(),
+    }
+    const fakeReq = { method: 'GET', url: '/admin/routes' }
+
+    on.proxyReq(fakeProxyReq, fakeReq)
+    expect(fakeProxyReq.setHeader).toHaveBeenCalledWith('X-API-KEY', 'my-secret-key')
+  })
+
+  it('does not inject X-API-KEY header when apisixAdminApiKey is empty', () => {
+    const app = express()
+    const configNoKey = createTestConfig({
+      apisixDashboardUrl: 'http://apisix:9180/ui',
+      apisixAdminApiKey: '',
+    })
+    mountProxyMiddleware(app, configNoKey, createMockLogger())
+
+    const adminCall = mockedCreateProxy.mock.calls.find((args) => {
+      const opts = args[0] as Record<string, unknown>
+      return opts.target === 'http://apisix:9180/apisix' && opts.pathRewrite !== undefined
+        && JSON.stringify(opts.pathRewrite).includes('^/apisix')
+    })
+    expect(adminCall).toBeDefined()
+
+    const options = adminCall![0] as Record<string, unknown>
+    const on = options.on as Record<string, (...args: unknown[]) => void>
+    const fakeProxyReq = {
+      setHeader: vi.fn(),
+    }
+    const fakeReq = { method: 'GET', url: '/admin/routes' }
+
+    on.proxyReq(fakeProxyReq, fakeReq)
+    expect(fakeProxyReq.setHeader).not.toHaveBeenCalledWith(
+      'X-API-KEY',
+      expect.anything(),
+    )
+  })
+
+  it('does not inject X-API-KEY header on regular service proxies', () => {
+    const app = express()
+    const configWithKey = createTestConfig({
+      apisixDashboardUrl: 'http://apisix:9180/ui',
+      apisixAdminApiKey: 'my-secret-key',
+    })
+    mountProxyMiddleware(app, configWithKey, createMockLogger())
+
+    const tilCall = mockedCreateProxy.mock.calls.find(
+      (args) => (args[0] as Record<string, unknown>)?.target === 'http://til:8080',
+    )
+    expect(tilCall).toBeDefined()
+
+    const options = tilCall![0] as Record<string, unknown>
+    const on = options.on as Record<string, (...args: unknown[]) => void>
+    const fakeProxyReq = {
+      setHeader: vi.fn(),
+    }
+    const fakeReq = { method: 'GET', url: '/v4/issuers' }
+
+    on.proxyReq(fakeProxyReq, fakeReq)
+    expect(fakeProxyReq.setHeader).not.toHaveBeenCalled()
   })
 
   it.each([

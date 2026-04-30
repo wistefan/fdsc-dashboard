@@ -23,7 +23,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { parsePort, loadConfig, getEnabledServices } from '../config.js'
+import { parsePort, loadConfig, getEnabledServices, getApisixConfig } from '../config.js'
 import { parseLogLevel } from '../logger.js'
 
 /** Default port returned when PORT env var is missing or invalid. */
@@ -73,6 +73,8 @@ describe('loadConfig', () => {
       tirApiUrl: '',
       ccsApiUrl: '',
       odrlApiUrl: '',
+      apisixDashboardUrl: '',
+      apisixAdminApiKey: '',
       authConfigJson: DEFAULT_AUTH_CONFIG_JSON,
       staticDir: DEFAULT_STATIC_DIR,
       logLevel: 'info',
@@ -86,6 +88,8 @@ describe('loadConfig', () => {
       TIR_API_URL: 'http://custom-tir:3000',
       CCS_API_URL: 'http://custom-ccs:3000',
       ODRL_API_URL: 'http://custom-odrl:3000',
+      APISIX_DASHBOARD_URL: 'http://apisix:9000',
+      APISIX_ADMIN_API_KEY: 'my-secret-key',
       AUTH_CONFIG_JSON: '{"providers":[{"name":"keycloak"}]}',
       STATIC_DIR: '/var/www/html',
       LOG_LEVEL: 'debug',
@@ -99,6 +103,8 @@ describe('loadConfig', () => {
       tirApiUrl: 'http://custom-tir:3000',
       ccsApiUrl: 'http://custom-ccs:3000',
       odrlApiUrl: 'http://custom-odrl:3000',
+      apisixDashboardUrl: 'http://apisix:9000',
+      apisixAdminApiKey: 'my-secret-key',
       authConfigJson: '{"providers":[{"name":"keycloak"}]}',
       staticDir: '/var/www/html',
       logLevel: 'debug',
@@ -115,6 +121,8 @@ describe('loadConfig', () => {
     { envVar: 'TIR_API_URL', configKey: 'tirApiUrl', value: 'http://my-tir:9999' },
     { envVar: 'CCS_API_URL', configKey: 'ccsApiUrl', value: 'http://my-ccs:9999' },
     { envVar: 'ODRL_API_URL', configKey: 'odrlApiUrl', value: 'http://my-odrl:9999' },
+    { envVar: 'APISIX_DASHBOARD_URL', configKey: 'apisixDashboardUrl', value: 'http://apisix:9000' },
+    { envVar: 'APISIX_ADMIN_API_KEY', configKey: 'apisixAdminApiKey', value: 'my-admin-key' },
     { envVar: 'AUTH_CONFIG_JSON', configKey: 'authConfigJson', value: '{"custom":true}' },
     { envVar: 'STATIC_DIR', configKey: 'staticDir', value: '/custom/path' },
     { envVar: 'LOG_LEVEL', configKey: 'logLevel', value: 'debug' },
@@ -205,4 +213,21 @@ describe('getEnabledServices', () => {
       }
     },
   )
+})
+
+describe('getApisixConfig', () => {
+  it('returns null upstream URL when APISIX_DASHBOARD_URL is not set', () => {
+    const config = loadConfig({})
+    expect(getApisixConfig(config)).toEqual({ upstreamUrl: null })
+  })
+
+  it('returns the configured upstream URL when APISIX_DASHBOARD_URL is set', () => {
+    const config = loadConfig({ APISIX_DASHBOARD_URL: 'https://apisix.example.com/ui' })
+    expect(getApisixConfig(config)).toEqual({ upstreamUrl: 'https://apisix.example.com/ui' })
+  })
+
+  it('returns null upstream URL when APISIX_DASHBOARD_URL is empty string', () => {
+    const config = loadConfig({ APISIX_DASHBOARD_URL: '' })
+    expect(getApisixConfig(config)).toEqual({ upstreamUrl: null })
+  })
 })

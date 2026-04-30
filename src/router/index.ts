@@ -27,6 +27,10 @@ import {
   LOGIN_ROUTE_PATH,
   RETURN_TO_STORAGE_KEY,
 } from '@/auth/constants'
+import {
+  APISIX_DASHBOARD_ROUTE_NAME,
+  APISIX_DASHBOARD_ROUTE_PATH,
+} from '@/apisix/constants'
 import { useAuthStore } from '@/stores/auth'
 import { useServices, type ServicesConfig } from '@/composables/useServices'
 
@@ -172,6 +176,12 @@ const routes: RouteRecordRaw[] = [
     name: 'service-policy-detail',
     component: () => import('@/views/policies/PolicyDetailView.vue'),
     props: true,
+  },
+  {
+    path: APISIX_DASHBOARD_ROUTE_PATH,
+    name: APISIX_DASHBOARD_ROUTE_NAME,
+    component: () => import('@/views/apisix/ApisixView.vue'),
+    meta: { ...ADMIN_ONLY_META },
   },
 ]
 
