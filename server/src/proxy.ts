@@ -43,6 +43,9 @@ const CCS_API_PATH = '/api/ccs'
 /** API path prefix for ODRL Policy routes. */
 const ODRL_API_PATH = '/api/odrl'
 
+/** Path prefix at which the Apisix Dashboard reverse proxy is mounted. */
+const APISIX_DASHBOARD_PATH = '/apisix-dashboard'
+
 /**
  * Descriptor for a single proxy route, mapping a local path prefix
  * to an upstream service URL.
@@ -113,6 +116,7 @@ function createProxyOptions(route: ProxyRoute, logger: Logger): Options {
  * - `/api/tir/*` → `config.tirApiUrl`
  * - `/api/ccs/*` → `config.ccsApiUrl`
  * - `/api/odrl/*` → `config.odrlApiUrl`
+ * - `/apisix-dashboard/*` → `config.apisixDashboardUrl`
  *
  * Each proxy strips its path prefix before forwarding and passes all
  * request headers through unchanged.
@@ -127,6 +131,7 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
     { path: TIR_API_PATH, target: config.tirApiUrl },
     { path: CCS_API_PATH, target: config.ccsApiUrl },
     { path: ODRL_API_PATH, target: config.odrlApiUrl },
+    { path: APISIX_DASHBOARD_PATH, target: config.apisixDashboardUrl },
   ].filter((route) => route.target !== '')
 
   for (const route of routes) {

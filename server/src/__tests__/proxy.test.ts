@@ -223,6 +223,33 @@ describe('mountProxyMiddleware', () => {
     expect(targets).toContain('http://custom-odrl:9003')
   })
 
+  it('mounts Apisix Dashboard proxy when apisixDashboardUrl is configured', () => {
+    const app = express()
+    const configWithApisix = createTestConfig({
+      apisixDashboardUrl: 'https://apisix.example.com/ui',
+    })
+    mountProxyMiddleware(app, configWithApisix, createMockLogger())
+
+    const EXPECTED_COUNT_WITH_APISIX = 5
+    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_COUNT_WITH_APISIX)
+
+    const targets = mockedCreateProxy.mock.calls.map(
+      (args) => (args[0] as Record<string, unknown>)?.target,
+    )
+    expect(targets).toContain('https://apisix.example.com/ui')
+  })
+
+  it('does not mount Apisix Dashboard proxy when apisixDashboardUrl is empty', () => {
+    const app = express()
+    mountProxyMiddleware(app, createTestConfig(), createMockLogger())
+
+    const targets = mockedCreateProxy.mock.calls.map(
+      (args) => (args[0] as Record<string, unknown>)?.target,
+    )
+    expect(targets).not.toContain('')
+    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_PROXY_COUNT)
+  })
+
   it.each([
     { service: 'TIL', targetUrl: 'http://til:8080' },
     { service: 'TIR', targetUrl: 'http://tir:8080' },
