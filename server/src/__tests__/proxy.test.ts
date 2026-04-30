@@ -248,7 +248,7 @@ describe('mountProxyMiddleware', () => {
 
     const adminProxyCall = mockedCreateProxy.mock.calls.find((args) => {
       const opts = args[0] as Record<string, unknown>
-      return opts.target === 'http://apisix:9180'
+      return opts.target === 'http://apisix:9180/apisix'
         && JSON.stringify(opts.pathRewrite).includes('^/apisix')
     })
     expect(adminProxyCall).toBeDefined()
@@ -286,7 +286,7 @@ describe('mountProxyMiddleware', () => {
 
     const adminCall = mockedCreateProxy.mock.calls.find((args) => {
       const opts = args[0] as Record<string, unknown>
-      return opts.target === 'http://apisix:9180' && opts.pathRewrite !== undefined
+      return opts.target === 'http://apisix:9180/apisix' && opts.pathRewrite !== undefined
         && JSON.stringify(opts.pathRewrite).includes('^/apisix')
     })
     expect(adminCall).toBeDefined()
@@ -312,7 +312,7 @@ describe('mountProxyMiddleware', () => {
 
     const adminCall = mockedCreateProxy.mock.calls.find((args) => {
       const opts = args[0] as Record<string, unknown>
-      return opts.target === 'http://apisix:9180' && opts.pathRewrite !== undefined
+      return opts.target === 'http://apisix:9180/apisix' && opts.pathRewrite !== undefined
         && JSON.stringify(opts.pathRewrite).includes('^/apisix')
     })
     expect(adminCall).toBeDefined()

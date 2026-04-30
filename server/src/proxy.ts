@@ -197,7 +197,7 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
     }
     routes.push({
       path: APISIX_ADMIN_API_PATH,
-      target: extractUrlOrigin(config.apisixDashboardUrl),
+      target: extractUrlOrigin(config.apisixDashboardUrl) + APISIX_ADMIN_API_PATH,
       headers: adminHeaders,
     })
   }
