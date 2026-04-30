@@ -24,6 +24,7 @@
 
 import { type Express, type Response } from 'express'
 import { createProxyMiddleware, type Options } from 'http-proxy-middleware'
+import type { ClientRequest } from 'node:http'
 import type { IncomingMessage } from 'node:http'
 import type { AppConfig } from './config.js'
 import type { Logger } from './logger.js'
@@ -45,6 +46,12 @@ const ODRL_API_PATH = '/api/odrl'
 
 /** Path prefix at which the Apisix Dashboard reverse proxy is mounted. */
 const APISIX_DASHBOARD_PATH = '/apisix-dashboard'
+
+/** Path prefix for the Apisix Admin API (called by the embedded dashboard UI). */
+const APISIX_ADMIN_API_PATH = '/apisix'
+
+/** HTTP header name used by the Apisix Admin API for authentication. */
+const APISIX_API_KEY_HEADER = 'X-API-KEY'
 
 /**
  * Extracts the path component from a URL string.
@@ -86,6 +93,8 @@ interface ProxyRoute {
   path: string
   /** Full upstream URL to forward requests to. */
   target: string
+  /** Optional headers injected into every proxied request. */
+  headers?: Record<string, string>
 }
 
 /**
@@ -110,7 +119,12 @@ function createProxyOptions(route: ProxyRoute, logger: Logger): Options {
       [`^${route.path}`]: '',
     },
     on: {
-      proxyReq: (_proxyReq, req) => {
+      proxyReq: (proxyReq: ClientRequest, req) => {
+        if (route.headers) {
+          for (const [name, value] of Object.entries(route.headers)) {
+            proxyReq.setHeader(name, value)
+          }
+        }
         logger.debug(`[proxy] ${req.method} ${req.url} -> ${route.target}`)
       },
       proxyRes: (proxyRes, req) => {
@@ -176,6 +190,16 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
         target: extractUrlOrigin(config.apisixDashboardUrl),
       })
     }
+
+    const adminHeaders: Record<string, string> = {}
+    if (config.apisixAdminApiKey !== '') {
+      adminHeaders[APISIX_API_KEY_HEADER] = config.apisixAdminApiKey
+    }
+    routes.push({
+      path: APISIX_ADMIN_API_PATH,
+      target: extractUrlOrigin(config.apisixDashboardUrl),
+      headers: adminHeaders,
+    })
   }
 
   for (const route of routes) {

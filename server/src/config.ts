@@ -57,6 +57,8 @@ export interface AppConfig {
   staticDir: string
   /** Upstream URL for the Apisix Dashboard (empty = disabled). */
   apisixDashboardUrl: string
+  /** API key for the Apisix Admin API, injected by the proxy (empty = no key). */
+  apisixAdminApiKey: string
   /** Minimum log severity level for the BFF server. */
   logLevel: LogLevel
 }
@@ -161,6 +163,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     ccsApiUrl: env.CCS_API_URL || '',
     odrlApiUrl: env.ODRL_API_URL || '',
     apisixDashboardUrl: env.APISIX_DASHBOARD_URL || '',
+    apisixAdminApiKey: env.APISIX_ADMIN_API_KEY || '',
     authConfigJson: env.AUTH_CONFIG_JSON || DEFAULT_AUTH_CONFIG_JSON,
     staticDir: env.STATIC_DIR || DEFAULT_STATIC_DIR,
     logLevel: parseLogLevel(env.LOG_LEVEL),
