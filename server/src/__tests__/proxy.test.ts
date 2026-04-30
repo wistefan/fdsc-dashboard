@@ -223,20 +223,32 @@ describe('mountProxyMiddleware', () => {
     expect(targets).toContain('http://custom-odrl:9003')
   })
 
-  it('mounts Apisix Dashboard proxy when apisixDashboardUrl is configured', () => {
+  it('mounts Apisix Dashboard proxy and asset path proxy when apisixDashboardUrl is configured', () => {
     const app = express()
     const configWithApisix = createTestConfig({
-      apisixDashboardUrl: 'https://apisix.example.com/ui',
+      apisixDashboardUrl: 'http://apisix:9180/ui',
     })
     mountProxyMiddleware(app, configWithApisix, createMockLogger())
 
-    const EXPECTED_COUNT_WITH_APISIX = 5
-    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_COUNT_WITH_APISIX)
+    const EXPECTED_COUNT_WITH_APISIX_AND_ASSETS = 6
+    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_COUNT_WITH_APISIX_AND_ASSETS)
 
     const targets = mockedCreateProxy.mock.calls.map(
       (args) => (args[0] as Record<string, unknown>)?.target,
     )
-    expect(targets).toContain('https://apisix.example.com/ui')
+    expect(targets).toContain('http://apisix:9180/ui')
+    expect(targets).toContain('http://apisix:9180')
+  })
+
+  it('does not add asset path proxy when apisixDashboardUrl has no path', () => {
+    const app = express()
+    const configWithApisix = createTestConfig({
+      apisixDashboardUrl: 'http://apisix:9000',
+    })
+    mountProxyMiddleware(app, configWithApisix, createMockLogger())
+
+    const EXPECTED_COUNT_WITH_APISIX_NO_PATH = 5
+    expect(mockedCreateProxy).toHaveBeenCalledTimes(EXPECTED_COUNT_WITH_APISIX_NO_PATH)
   })
 
   it('does not mount Apisix Dashboard proxy when apisixDashboardUrl is empty', () => {

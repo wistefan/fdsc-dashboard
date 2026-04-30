@@ -47,6 +47,37 @@ const ODRL_API_PATH = '/api/odrl'
 const APISIX_DASHBOARD_PATH = '/apisix-dashboard'
 
 /**
+ * Extracts the path component from a URL string.
+ *
+ * @param urlString - A full URL (e.g. `http://host:9180/ui`)
+ * @returns The path component (e.g. `/ui`), or `null` if absent or root-only
+ */
+function extractUrlPath(urlString: string): string | null {
+  try {
+    const parsed = new URL(urlString)
+    const p = parsed.pathname.replace(/\/+$/, '')
+    return p.length > 0 ? p : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Returns the origin (scheme + host + port) of a URL, stripping any path.
+ *
+ * @param urlString - A full URL (e.g. `http://host:9180/ui`)
+ * @returns The origin (e.g. `http://host:9180`)
+ */
+function extractUrlOrigin(urlString: string): string {
+  try {
+    const parsed = new URL(urlString)
+    return parsed.origin
+  } catch {
+    return urlString
+  }
+}
+
+/**
  * Descriptor for a single proxy route, mapping a local path prefix
  * to an upstream service URL.
  */
@@ -117,6 +148,9 @@ function createProxyOptions(route: ProxyRoute, logger: Logger): Options {
  * - `/api/ccs/*` → `config.ccsApiUrl`
  * - `/api/odrl/*` → `config.odrlApiUrl`
  * - `/apisix-dashboard/*` → `config.apisixDashboardUrl`
+ * - The upstream's base path (e.g. `/ui/*`) is also proxied so that
+ *   absolute asset references in the Apisix Dashboard HTML resolve
+ *   correctly through the reverse proxy.
  *
  * Each proxy strips its path prefix before forwarding and passes all
  * request headers through unchanged.
@@ -133,6 +167,16 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
     { path: ODRL_API_PATH, target: config.odrlApiUrl },
     { path: APISIX_DASHBOARD_PATH, target: config.apisixDashboardUrl },
   ].filter((route) => route.target !== '')
+
+  if (config.apisixDashboardUrl !== '') {
+    const upstreamPath = extractUrlPath(config.apisixDashboardUrl)
+    if (upstreamPath !== null) {
+      routes.push({
+        path: upstreamPath,
+        target: extractUrlOrigin(config.apisixDashboardUrl),
+      })
+    }
+  }
 
   for (const route of routes) {
     app.use(route.path, createProxyMiddleware(createProxyOptions(route, logger)))
