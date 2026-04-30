@@ -187,7 +187,7 @@ export function mountProxyMiddleware(app: Express, config: AppConfig, logger: Lo
     if (upstreamPath !== null) {
       routes.push({
         path: upstreamPath,
-        target: extractUrlOrigin(config.apisixDashboardUrl),
+        target: config.apisixDashboardUrl,
       })
     }
 

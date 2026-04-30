@@ -238,7 +238,20 @@ describe('mountProxyMiddleware', () => {
       (args) => (args[0] as Record<string, unknown>)?.target,
     )
     expect(targets).toContain('http://apisix:9180/ui')
-    expect(targets).toContain('http://apisix:9180')
+
+    const assetProxyCall = mockedCreateProxy.mock.calls.find((args) => {
+      const opts = args[0] as Record<string, unknown>
+      return opts.target === 'http://apisix:9180/ui'
+        && JSON.stringify(opts.pathRewrite).includes('^/ui')
+    })
+    expect(assetProxyCall).toBeDefined()
+
+    const adminProxyCall = mockedCreateProxy.mock.calls.find((args) => {
+      const opts = args[0] as Record<string, unknown>
+      return opts.target === 'http://apisix:9180'
+        && JSON.stringify(opts.pathRewrite).includes('^/apisix')
+    })
+    expect(adminProxyCall).toBeDefined()
   })
 
   it('does not add asset path proxy when apisixDashboardUrl has no path but still adds admin API proxy', () => {
